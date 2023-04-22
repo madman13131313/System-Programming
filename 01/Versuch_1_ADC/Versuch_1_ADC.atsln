@@ -1,0 +1,21 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+VisualStudioVersion = 14.0.23107.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{54F91283-7BC4-4236-8FF9-10F437C3AD48}") = "Versuch_1_ADC", "Versuch_1_ADC\Versuch_1_ADC.cproj", "{7596E635-2ACD-48FB-BBB7-F696AF0FC8B3}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|AVR = Debug|AVR
+		Release|AVR = Release|AVR
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7596E635-2ACD-48FB-BBB7-F696AF0FC8B3}.Debug|AVR.ActiveCfg = Debug|AVR
+		{7596E635-2ACD-48FB-BBB7-F696AF0FC8B3}.Debug|AVR.Build.0 = Debug|AVR
+		{7596E635-2ACD-48FB-BBB7-F696AF0FC8B3}.Release|AVR.ActiveCfg = Release|AVR
+		{7596E635-2ACD-48FB-BBB7-F696AF0FC8B3}.Release|AVR.Build.0 = Release|AVR
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
