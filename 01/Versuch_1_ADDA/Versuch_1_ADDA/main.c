@@ -37,7 +37,7 @@ void manuell(void){
 	while(1){
 		uint8_t dip = PIND;
 		PORTA = ~dip; //dip gives active low signal
-		PORTB = ~dip;
+		PORTB = dip;
 	}
 }
 
@@ -85,8 +85,14 @@ void tracking(void){
 			_delay_ms(50); // Wartezeit
 			if ((PINC & 0b00000001) == 0) // Komparator Verhalten
 			{
-				dip += ubc; // inkrementieren
+				if (dip + ubc >= 0b11111111)
+				{
+					flag += 0b00000001;
+					dip = 0b11111111;
 				}else{
+					dip += ubc; // inkrementieren
+				}
+			}else{
 				dip -= ubc; // dekrementieren
 				flag += 0b00000001; // die Wandlung stoppen
 			}
