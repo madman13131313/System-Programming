@@ -32,7 +32,7 @@
 Process os_processes[MAX_NUMBER_OF_PROCESSES];
 
 //! Index of process that is currently executed (default: idle)
-#warning IMPLEMENT STH. HERE
+ProcessID currentProc = 0;
 
 //----------------------------------------------------------------------------
 // Private variables
@@ -64,7 +64,31 @@ ISR(TIMER2_COMPA_vect) __attribute__((naked));
  *  the processor to that process.
  */
 ISR(TIMER2_COMPA_vect) {
-    #warning IMPLEMENT STH. HERE
+	//1. Speichern des Programmzählers als Rücksprungadresse (implizit)
+    //2. Sichern des Laufzeitkontextes des aktuellen Prozesses auf dessen Prozessstack.
+	saveContext();
+	
+	//3. Sichern des Stackpointers für den Prozessstack des aktuellen Prozesses
+	os_processes[currentProc]->sp = SP;
+	
+	//4. Setzen des SP-Registers auf den Scheduler-Stack
+	SP = BOTTOM_OF_ISR_STACK;
+	
+	//5. Setzen des Prozesszustandes des aktuellen Prozesses auf OS_PS_READY
+	os_processes[currentProc]->state = OS_PS_READY;
+	
+	//6. Auswahl des nächsten fortzusetzenden Prozesses
+	ProcessID nextProc;
+	currentProc = nextProc;
+	
+	//7. Setzen des Prozesszustandes des fortzusetzenden Prozesses auf OS_PS_RUNNING
+	os_processes[currentProc]->state = OS_PS_RUNNING;
+	
+	//8. Wiederherstellen des Stackpointers für den Prozessstack des fortzusetzenden Prozesses
+	SP = os_processes[currentProc]->sp;
+	
+	//9. Wiederherstellen des Laufzeitkontextes des fortzusetzenden Prozesses
+	restoreContext();
 }
 
 /*!
@@ -144,7 +168,19 @@ void os_startScheduler(void) {
  *  initialize its internal data-structures and register.
  */
 void os_initScheduler(void) {
-    #warning IMPLEMENT STH. HERE
+	// das Feld state aller Einträge auf OS_PS_UNUSED setzen
+    for (int i=0; i < MAX_NUMBER_OF_PROCESSES; i++)
+    {
+		os_processes[i].state = OS_PS_UNUSED;
+    }
+	
+	// Starten des Leerlaufprozesses
+	os_exec(idle, DEFAULT_PRIORITY);
+	
+	// Durchlaufen der autostart_head-Liste und Starten aller markierten Programme
+	for (program_linked_list_node *node = autostart_head; node != NULL; node = node->next) {
+		os_exec(node->program, DEFAULT_PRIORITY);
+	}
 }
 
 /*!
@@ -163,7 +199,7 @@ Process* os_getProcessSlot(ProcessID pid) {
  *  \return The process id of the currently active process.
  */
 ProcessID os_getCurrentProc(void) {
-    #warning IMPLEMENT STH. HERE
+    return currentProc;
 }
 
 /*!
