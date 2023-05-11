@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <avr/interrupt.h>
+#include <avr/io.h>
 #include <avr/wdt.h>
 
 void os_initScheduler(void);
@@ -132,5 +133,17 @@ void os_init(void) {
  *  \param str  The error to be displayed
  */
 void os_errorPStr(char const* str) {
-    #warning IMPLEMENT STH. HERE
+	SREG &= 0b01111111; // Disable global interrupts
+
+    lcd_clear(); // Clear the LCD display
+    lcd_writeErrorProgString(PSTR(str)); // Display the error message on the LCD
+
+    while (1) { // Loop indefinitely until the error is acknowledged
+	    if (os_getInput() == 0b00001001) {
+			os_waitForNoInput();
+		    break; // Exit the loop when Enter and Esc are both released
+	    }
+    }
+
+    SREG |= 0b10000000; // Re-enable global interrupts
 }
