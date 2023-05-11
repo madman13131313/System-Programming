@@ -96,7 +96,11 @@ ISR(TIMER2_COMPA_vect) {
  *  and processor time no other process wants to have.
  */
 void idle(void) {
-    #warning IMPLEMENT STH. HERE
+    while (1)
+    {
+		lcd_writeString("....");
+		delayMs(DEFAULT_OUTPUT_DELAY);
+    }
 }
 
 /*!
