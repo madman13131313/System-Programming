@@ -19,26 +19,33 @@ Everything that is necessary to get the input from the Buttons in a clean format
  *
  */
 uint8_t os_getInput(void) {
-    #warning IMPLEMENT STH. HERE
+    // Invert PINC and filter out unwanted bits
+    const uint8_t pressed = (~PINC) & 0b11000011;
+    // Combine the two bottom bits with the inverted upper bits
+    return (pressed & 0b00000011) | (pressed >> 4);
 }
 
 /*!
  *  Initializes DDR and PORT for input
  */
 void os_initInput() {
-    #warning IMPLEMENT STH. HERE
+     // Set the input pins of PORTC to input
+     DDRC &= 0b11000011;
+     // Enable the pull-up resistors for the input pins
+     PORTC |= 0b11000011;
 }
 
 /*!
  *  Endless loop as long as at least one button is pressed.
  */
 void os_waitForNoInput() {
-    #warning IMPLEMENT STH. HERE
+    // Wait until no button is pressed
+    while (os_getInput() != 0);
 }
 
 /*!
  *  Endless loop until at least one button is pressed.
  */
 void os_waitForInput() {
-    #warning IMPLEMENT STH. HERE
-}
+    // Wait until a button is pressed
+    while (os_getInput() == 0);
