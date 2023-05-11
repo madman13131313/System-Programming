@@ -29,7 +29,7 @@
 //----------------------------------------------------------------------------
 
 //! Array of states for every possible process
-#warning IMPLEMENT STH. HERE
+Process os_processes[MAX_NUMBER_OF_PROCESSES];
 
 //! Index of process that is currently executed (default: idle)
 #warning IMPLEMENT STH. HERE
@@ -92,7 +92,42 @@ void idle(void) {
  *          defines.h on failure
  */
 ProcessID os_exec(Program *program, Priority priority) {
-    #warning IMPLEMENT STH. HERE
+	ProcessID PID;
+	//1. Freien Platz im Array os_processes finden
+	for (PID = 0; PID < MAX_NUMBER_OF_PROCESSES; PID++)
+	{
+		if (os_processes[PID].state == OS_PS_UNUSED){
+			break;
+		}
+	}
+	if (PID == MAX_NUMBER_OF_PROCESSES)
+	{
+		return INVALID_PROCESS;
+	}
+	//2. Programmzeiger überprüfen
+	if (*program == NULL) {
+		return INVALID_PROCESS;
+	}
+	//3. Programm, Prozesszustand und Prozesspriorität speichern
+	os_processes[PID].program = program;
+	os_processes[PID].state = OS_PS_READY;
+	os_processes[PID].priority = priority;
+	//4. Prozessstack vorbereiten
+	StackPointer sp;
+	sp.as_ptr = PROCESS_STACK_BOTTOM(PID);
+	// die initiale Rücksprungadresse speichern
+	*(sp.as_ptr) = (uint8_t) program; // Low byte
+	sp.as_ptr--;
+	*(sp.as_ptr) = (uint8_t) ((uint16_t)program >> 8); // High byte
+	sp.as_ptr--;
+	// den initialen Laufzeitkontext speichern
+	for (int i = 0; i < 33; i++) {
+		*(sp.as_ptr) = 0;
+		sp.as_ptr--;
+	}
+	//der Stackpointer des neuen Prozesses auf die nun erste freie Speicherstelle des Prozessstacks gesetzt werden
+	os_processes[PID].sp = sp.as_int;
+	return PID;
 }
 
 /*!
