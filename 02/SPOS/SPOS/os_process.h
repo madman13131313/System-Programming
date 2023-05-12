@@ -53,7 +53,8 @@ typedef struct {
     Program* program;
     ProcessState state;
     Priority priority;
-    union StackPointer sp;
+    StackPointer sp;
+	StackChecksum checksum;	
 } Process;
 
 /*!

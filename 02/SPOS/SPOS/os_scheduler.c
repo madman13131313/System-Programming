@@ -39,10 +39,10 @@ ProcessID currentProc = 0;
 //----------------------------------------------------------------------------
 
 //! Currently active scheduling strategy
-#warning IMPLEMENT STH. HERE
+SchedulingStrategy currentStrategy;
 
 //! Count of currently nested critical sections
-#warning IMPLEMENT STH. HERE
+uint8_t criticalSectionCount;
 
 //----------------------------------------------------------------------------
 // Private function declarations
@@ -69,23 +69,48 @@ ISR(TIMER2_COMPA_vect) {
 	saveContext();
 	
 	//3. Sichern des Stackpointers für den Prozessstack des aktuellen Prozesses
-	os_processes[currentProc]->sp = SP;
+	os_processes[currentProc].sp.as_int = SP;
 	
 	//4. Setzen des SP-Registers auf den Scheduler-Stack
 	SP = BOTTOM_OF_ISR_STACK;
 	
+	// Aufruf des Taskmanagers
+	if (os_getInput() == 0b00001001) {
+		os_waitForNoInput();
+		os_taskManMain(); // Exit the loop when Enter and Esc are both released
+	}
+	
 	//5. Setzen des Prozesszustandes des aktuellen Prozesses auf OS_PS_READY
-	os_processes[currentProc]->state = OS_PS_READY;
+	os_processes[currentProc].state = OS_PS_READY;
+	
+	//checksum abspeichern
+	os_processes[currentProc].checksum = os_getStackChecksum(currentProc);
 	
 	//6. Auswahl des nächsten fortzusetzenden Prozesses
-	ProcessID nextProc;
-	currentProc = nextProc;
+	ProcessID nextProc = 0;
+	while (1){
+		if (currentStrategy == OS_SS_EVEN)
+		{
+			nextProc = os_Scheduler_Even(os_processes, currentProc);
+		}else if (currentStrategy == OS_SS_RANDOM)
+		{
+			nextProc = os_Scheduler_Random(os_processes, currentProc);
+		}
+		// checksum check
+		StackChecksum new_sum = os_getStackChecksum(nextProc);
+		if (new_sum != os_processes[nextProc].checksum) {
+			os_error("Process stack checksum has changed!");
+		}else{
+			currentProc = nextProc;
+			break;
+		}
+	}
 	
 	//7. Setzen des Prozesszustandes des fortzusetzenden Prozesses auf OS_PS_RUNNING
-	os_processes[currentProc]->state = OS_PS_RUNNING;
+	os_processes[currentProc].state = OS_PS_RUNNING;
 	
 	//8. Wiederherstellen des Stackpointers für den Prozessstack des fortzusetzenden Prozesses
-	SP = os_processes[currentProc]->sp;
+	SP = os_processes[currentProc].sp.as_int;
 	
 	//9. Wiederherstellen des Laufzeitkontextes des fortzusetzenden Prozesses
 	restoreContext();
@@ -120,6 +145,7 @@ void idle(void) {
  *          defines.h on failure
  */
 ProcessID os_exec(Program *program, Priority priority) {
+	os_enterCriticalSection();
 	ProcessID PID;
 	//1. Freien Platz im Array os_processes finden
 	for (PID = 0; PID < MAX_NUMBER_OF_PROCESSES; PID++)
@@ -142,9 +168,9 @@ ProcessID os_exec(Program *program, Priority priority) {
 	os_processes[PID].priority = priority;
 	//4. Prozessstack vorbereiten
 	StackPointer sp;
-	sp.as_ptr = PROCESS_STACK_BOTTOM(PID);
+	sp.as_int = PROCESS_STACK_BOTTOM(PID);
 	// die initiale Rücksprungadresse speichern
-	*(sp.as_ptr) = (uint8_t) program; // Low byte
+	*(sp.as_ptr) = (uint8_t) ((uint16_t)program); // Low byte
 	sp.as_ptr--;
 	*(sp.as_ptr) = (uint8_t) ((uint16_t)program >> 8); // High byte
 	sp.as_ptr--;
@@ -153,8 +179,11 @@ ProcessID os_exec(Program *program, Priority priority) {
 		*(sp.as_ptr) = 0;
 		sp.as_ptr--;
 	}
-	//der Stackpointer des neuen Prozesses auf die nun erste freie Speicherstelle des Prozessstacks gesetzt werden
-	os_processes[PID].sp = sp.as_int;
+	// der Stackpointer des neuen Prozesses auf die nun erste freie Speicherstelle des Prozessstacks gesetzt werden
+	os_processes[PID].sp.as_ptr = sp.as_ptr;
+	// Prüfsumme initialisieren
+	os_processes[PID].checksum = os_getStackChecksum(PID);
+	os_leaveCriticalSection();
 	return PID;
 }
 
@@ -164,7 +193,10 @@ ProcessID os_exec(Program *program, Priority priority) {
  *  applications.
  */
 void os_startScheduler(void) {
-    #warning IMPLEMENT STH. HERE
+    currentProc = 0;
+	os_processes[currentProc].state = OS_PS_RUNNING;
+	SP = os_processes[currentProc].sp.as_int;
+	restoreContext();
 }
 
 /*!
@@ -182,8 +214,9 @@ void os_initScheduler(void) {
 	os_exec(idle, DEFAULT_PRIORITY);
 	
 	// Durchlaufen der autostart_head-Liste und Starten aller markierten Programme
-	for (program_linked_list_node *node = autostart_head; node != NULL; node = node->next) {
-		os_exec(node->program, DEFAULT_PRIORITY);
+	while (autostart_head != NULL) {
+		os_exec(autostart_head->program, DEFAULT_PRIORITY);
+		autostart_head = autostart_head->next;
 	}
 }
 
@@ -212,7 +245,7 @@ ProcessID os_getCurrentProc(void) {
  *  \param strategy The strategy that will be used after the function finishes.
  */
 void os_setSchedulingStrategy(SchedulingStrategy strategy) {
-    #warning IMPLEMENT STH. HERE
+    currentStrategy = strategy;
 }
 
 /*!
@@ -221,7 +254,7 @@ void os_setSchedulingStrategy(SchedulingStrategy strategy) {
  *  \return The current scheduling strategy.
  */
 SchedulingStrategy os_getSchedulingStrategy(void) {
-    #warning IMPLEMENT STH. HERE
+    return currentStrategy;
 }
 
 /*!
@@ -232,7 +265,11 @@ SchedulingStrategy os_getSchedulingStrategy(void) {
  *  This function supports up to 255 nested critical sections.
  */
 void os_enterCriticalSection(void) {
-    #warning IMPLEMENT STH. HERE
+    uint8_t sreg = SREG; // Speichern des Global Interrupt Enable Bit (GIEB) aus dem SREG
+	SREG &= ~(1 << 7); // Deaktivieren des Global Interrupt Enable Bit
+	criticalSectionCount++; // Inkrementieren der Verschachtelungstiefe des kritischen Bereiches
+	TIMSK2 &= ~(1 << OCIE2A); // Deaktivieren des Schedulers
+	SREG = sreg; // Wiederherstellen des (zuvor gespeicherten) Zustandes des Global Interrupt Enable Bit im SREG
 }
 
 /*!
@@ -242,7 +279,14 @@ void os_enterCriticalSection(void) {
  *  has to be reactivated.
  */
 void os_leaveCriticalSection(void) {
-    #warning IMPLEMENT STH. HERE
+   uint8_t sreg = SREG; // Speichern des Global Interrupt Enable Bit (GIEB) aus dem SREG
+   SREG &= ~(1 << 7); // Deaktivieren des Global Interrupt Enable Bit
+   criticalSectionCount--; // Decrementieren der Verschachtelungstiefe des kritischen Bereiches
+   if (criticalSectionCount == 0)
+   {
+	   TIMSK2 |= (1 << OCIE2A); // aktivieren des Schedulers
+   }
+   SREG = sreg; // Wiederherstellen des (zuvor gespeicherten) Zustandes des Global Interrupt Enable Bit im SREG
 }
 
 /*!
@@ -252,5 +296,10 @@ void os_leaveCriticalSection(void) {
  *  \return The checksum of the pid'th stack.
  */
 StackChecksum os_getStackChecksum(ProcessID pid) {
-    #warning IMPLEMENT STH. HERE
+    StackChecksum sum = 0;
+	for (StackPointer i = os_processes[pid].sp; i.as_int <= PROCESS_STACK_BOTTOM(pid); i.as_ptr++)
+	{
+		sum ^= *(i.as_ptr);
+	}
+	return sum;
 }

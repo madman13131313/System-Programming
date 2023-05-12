@@ -136,7 +136,7 @@ void os_errorPStr(char const* str) {
 	SREG &= 0b01111111; // Disable global interrupts
 
     lcd_clear(); // Clear the LCD display
-    lcd_writeErrorProgString(PSTR(str)); // Display the error message on the LCD
+    lcd_writeErrorProgString(str); // Display the error message on the LCD
 
     while (1) { // Loop indefinitely until the error is acknowledged
 	    if (os_getInput() == 0b00001001) {

@@ -49,3 +49,4 @@ void os_waitForNoInput() {
 void os_waitForInput() {
     // Wait until a button is pressed
     while (os_getInput() == 0);
+}
