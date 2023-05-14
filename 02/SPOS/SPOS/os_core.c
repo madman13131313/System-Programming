@@ -133,17 +133,18 @@ void os_init(void) {
  *  \param str  The error to be displayed
  */
 void os_errorPStr(char const* str) {
-	SREG &= 0b01111111; // Disable global interrupts
-
+	uint8_t sreg = SREG; // Speichern des Global Interrupt Enable Bit (GIEB) aus dem SREG
+	SREG &= ~(1 << 7); // Deaktivieren des Global Interrupt Enable Bit
     lcd_clear(); // Clear the LCD display
     lcd_writeErrorProgString(str); // Display the error message on the LCD
 
     while (1) { // Loop indefinitely until the error is acknowledged
 	    if (os_getInput() == 0b00001001) {
 			os_waitForNoInput();
+			SREG = sreg; // Re-enable global interrupts
 		    break; // Exit the loop when Enter and Esc are both released
 	    }
     }
 
-    SREG |= 0b10000000; // Re-enable global interrupts
+   
 }

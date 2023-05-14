@@ -77,7 +77,7 @@ ISR(TIMER2_COMPA_vect) {
 	// Aufruf des Taskmanagers
 	if (os_getInput() == 0b00001001) {
 		os_waitForNoInput();
-		os_taskManMain(); // Exit the loop when Enter and Esc are both released
+		os_taskManMain(); 
 	}
 	
 	//5. Setzen des Prozesszustandes des aktuellen Prozesses auf OS_PS_READY
@@ -88,27 +88,22 @@ ISR(TIMER2_COMPA_vect) {
 	
 	//6. Auswahl des nächsten fortzusetzenden Prozesses
 	ProcessID nextProc = 0;
-	while (1){
-		if (currentStrategy == OS_SS_EVEN)
-		{
-			nextProc = os_Scheduler_Even(os_processes, currentProc);
-		}else if (currentStrategy == OS_SS_RANDOM)
-		{
-			nextProc = os_Scheduler_Random(os_processes, currentProc);
-		}
-		// checksum check
-		StackChecksum new_sum = os_getStackChecksum(nextProc);
-		if (new_sum != os_processes[nextProc].checksum) {
-			os_error("Process stack checksum has changed!");
-		}else{
-			currentProc = nextProc;
-			break;
-		}
+	if (currentStrategy == OS_SS_EVEN)
+	{
+		nextProc = os_Scheduler_Even(os_processes, currentProc);
+	}if (currentStrategy == OS_SS_RANDOM)
+	{
+		nextProc = os_Scheduler_Random(os_processes, currentProc);
 	}
+	currentProc = nextProc;
 	
 	//7. Setzen des Prozesszustandes des fortzusetzenden Prozesses auf OS_PS_RUNNING
 	os_processes[currentProc].state = OS_PS_RUNNING;
 	
+	// checksum check
+	if (os_getStackChecksum(currentProc) != os_processes[currentProc].checksum) {
+		os_error("checksum changed!");
+	}
 	//8. Wiederherstellen des Stackpointers für den Prozessstack des fortzusetzenden Prozesses
 	SP = os_processes[currentProc].sp.as_int;
 	
@@ -156,10 +151,12 @@ ProcessID os_exec(Program *program, Priority priority) {
 	}
 	if (PID == MAX_NUMBER_OF_PROCESSES)
 	{
+		os_leaveCriticalSection();
 		return INVALID_PROCESS;
 	}
 	//2. Programmzeiger überprüfen
 	if (*program == NULL) {
+		os_leaveCriticalSection();
 		return INVALID_PROCESS;
 	}
 	//3. Programm, Prozesszustand und Prozesspriorität speichern
@@ -265,6 +262,11 @@ SchedulingStrategy os_getSchedulingStrategy(void) {
  *  This function supports up to 255 nested critical sections.
  */
 void os_enterCriticalSection(void) {
+	if (criticalSectionCount >= 0b11111111)
+	{
+		os_error("Overflow");
+		return;
+	}
     uint8_t sreg = SREG; // Speichern des Global Interrupt Enable Bit (GIEB) aus dem SREG
 	SREG &= ~(1 << 7); // Deaktivieren des Global Interrupt Enable Bit
 	criticalSectionCount++; // Inkrementieren der Verschachtelungstiefe des kritischen Bereiches
@@ -279,6 +281,11 @@ void os_enterCriticalSection(void) {
  *  has to be reactivated.
  */
 void os_leaveCriticalSection(void) {
+	if (criticalSectionCount <= 0)
+	{
+		os_error("Underflow");
+		return;
+	}
    uint8_t sreg = SREG; // Speichern des Global Interrupt Enable Bit (GIEB) aus dem SREG
    SREG &= ~(1 << 7); // Deaktivieren des Global Interrupt Enable Bit
    criticalSectionCount--; // Decrementieren der Verschachtelungstiefe des kritischen Bereiches
@@ -296,10 +303,11 @@ void os_leaveCriticalSection(void) {
  *  \return The checksum of the pid'th stack.
  */
 StackChecksum os_getStackChecksum(ProcessID pid) {
-    StackChecksum sum = 0;
-	for (StackPointer i = os_processes[pid].sp; i.as_int <= PROCESS_STACK_BOTTOM(pid); i.as_ptr++)
+	StackChecksum sum = *(os_processes[pid].sp.as_ptr + 1);
+	for (uint16_t i = os_processes[pid].sp.as_int + 2; i <= PROCESS_STACK_BOTTOM(pid); i++)
 	{
-		sum ^= *(i.as_ptr);
+		sum ^= *((uint8_t*)i);
 	}
 	return sum;
 }
+

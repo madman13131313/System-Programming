@@ -50,9 +50,13 @@ void os_resetProcessSchedulingInformation(ProcessID id) {
  */
 ProcessID os_Scheduler_Even(Process const processes[], ProcessID current) {
     ProcessID next = (current + 1) % MAX_NUMBER_OF_PROCESSES;
-	while (processes[next].state != OS_PS_READY)
+	while ((processes[next].state != OS_PS_READY) || (next == 0))
 	{
 		next = (next + 1) % MAX_NUMBER_OF_PROCESSES;
+		if (next == current)
+		{
+			return 0;
+		}
 	}
 	return next;
 }
@@ -69,7 +73,7 @@ ProcessID os_Scheduler_Random(Process const processes[], ProcessID current) {
     ProcessID readyProcesses[MAX_NUMBER_OF_PROCESSES];
 	int numReady = 0;
 	
-	for (int i = 0; i < MAX_NUMBER_OF_PROCESSES; i++)
+	for (int i = 1; i < MAX_NUMBER_OF_PROCESSES; i++)
 	{
 		if (processes[i].state == OS_PS_READY)
 		{
@@ -80,7 +84,7 @@ ProcessID os_Scheduler_Random(Process const processes[], ProcessID current) {
 	
 	if (numReady == 0)
 	{
-		return current;
+		return 0;
 	}
 	
 	int next = rand() % numReady;
