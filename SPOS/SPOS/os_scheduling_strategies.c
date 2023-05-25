@@ -16,6 +16,9 @@ The file contains five strategies:
 
 #include <stdlib.h>
 
+// globale Variable
+SchedulingInformation schedulingInfo;
+
 /*!
  *  Reset the scheduling information for a specific strategy
  *  This is only relevant for RoundRobin and InactiveAging
@@ -24,7 +27,17 @@ The file contains five strategies:
  *  \param strategy  The strategy to reset information for
  */
 void os_resetSchedulingInformation(SchedulingStrategy strategy) {
-    // This is a presence task
+	if (strategy == OS_SS_ROUND_ROBIN)
+	{
+		schedulingInfo.timeSlice = os_processes[currentProc].priority;
+	}
+	if (strategy == OS_SS_INACTIVE_AGING)
+	{
+		for (uint8_t i = 0; i < MAX_NUMBER_OF_PROCESSES; i++)
+		{
+			schedulingInfo.age[i] = 0;
+		}
+	}
 }
 
 /*!
@@ -35,7 +48,7 @@ void os_resetSchedulingInformation(SchedulingStrategy strategy) {
  *  \param id  The process slot to erase state for
  */
 void os_resetProcessSchedulingInformation(ProcessID id) {
-    // This is a presence task
+    schedulingInfo.age[id] = 0;
 }
 
 /*!
@@ -103,8 +116,16 @@ ProcessID os_Scheduler_Random(Process const processes[], ProcessID current) {
  *  \return The next process to be executed determined on the basis of the round robin strategy.
  */
 ProcessID os_Scheduler_RoundRobin(Process const processes[], ProcessID current) {
-    // This is a presence task
-    return 0;
+    if (schedulingInfo.timeSlice != 0)
+    {
+		schedulingInfo.timeSlice--;
+		return current;
+    }else
+    {
+		ProcessID next = os_Scheduler_Even(processes, current);
+		schedulingInfo.timeSlice = processes[next].priority;
+	    return next;
+    }
 }
 
 /*!
@@ -119,8 +140,39 @@ ProcessID os_Scheduler_RoundRobin(Process const processes[], ProcessID current) 
  *  \return The next process to be executed, determined based on the inactive-aging strategy.
  */
 ProcessID os_Scheduler_InactiveAging(Process const processes[], ProcessID current) {
-    // This is a presence task
-    return 0;
+	// the age of every waiting process is increased by its priority
+    for (uint8_t i = 0; i < MAX_NUMBER_OF_PROCESSES; i++)
+    {
+		if (processes[i].state == OS_PS_READY)
+		{
+			schedulingInfo.age[i] += processes[i].priority;
+		}
+    }
+	ProcessID next;
+	uint8_t max = 0;
+	for (uint8_t i = 0; i < MAX_NUMBER_OF_PROCESSES; i++){
+		// the oldest process is chosen
+		if (schedulingInfo.age[i] > max)
+		{
+			max = schedulingInfo.age[i];
+			next = i;
+		// If the oldest process is not distinct, the one with the highest priority is chosen
+		}else if (schedulingInfo.age[i] == max)
+		{
+			if (processes[i].priority > processes[next].priority)
+			{
+				next = i;
+			// If this is not distinct as well, the one with the lower ProcessID is chosen
+			}else if (processes[i].priority == processes[next].priority)
+			{
+				if (i < next)
+				{
+					next = i;
+				}
+			}
+		}
+	}
+    return next;
 }
 
 /*!
@@ -133,6 +185,9 @@ ProcessID os_Scheduler_InactiveAging(Process const processes[], ProcessID curren
  *  \return The next process to be executed, determined based on the run-to-completion strategy.
  */
 ProcessID os_Scheduler_RunToCompletion(Process const processes[], ProcessID current) {
-    // This is a presence task
-    return 0;
+    if (processes[current].state == OS_PS_READY)
+    {
+	    return current;
+    }
+    return os_Scheduler_Even(processes, current);
 }

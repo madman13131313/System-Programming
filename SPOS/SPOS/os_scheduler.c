@@ -87,15 +87,22 @@ ISR(TIMER2_COMPA_vect) {
 	os_processes[currentProc].checksum = os_getStackChecksum(currentProc);
 	
 	//6. Auswahl des nächsten fortzusetzenden Prozesses
-	ProcessID nextProc = 0;
 	if (currentStrategy == OS_SS_EVEN)
 	{
-		nextProc = os_Scheduler_Even(os_processes, currentProc);
+		currentProc = os_Scheduler_Even(os_processes, currentProc);
 	}if (currentStrategy == OS_SS_RANDOM)
 	{
-		nextProc = os_Scheduler_Random(os_processes, currentProc);
+		currentProc = os_Scheduler_Random(os_processes, currentProc);
+	}if (currentStrategy == OS_SS_INACTIVE_AGING)
+	{
+		currentProc = os_Scheduler_InactiveAging(os_processes, currentProc);
+	}if (currentStrategy == OS_SS_ROUND_ROBIN)
+	{
+		currentProc = os_Scheduler_RoundRobin(os_processes, currentProc);
+	}if (currentStrategy == OS_SS_RUN_TO_COMPLETION)
+	{
+		currentProc = os_Scheduler_RunToCompletion(os_processes, currentProc);
 	}
-	currentProc = nextProc;
 	
 	//7. Setzen des Prozesszustandes des fortzusetzenden Prozesses auf OS_PS_RUNNING
 	os_processes[currentProc].state = OS_PS_RUNNING;
@@ -163,6 +170,7 @@ ProcessID os_exec(Program *program, Priority priority) {
 	os_processes[PID].program = program;
 	os_processes[PID].state = OS_PS_READY;
 	os_processes[PID].priority = priority;
+	os_resetProcessSchedulingInformation(PID); // reset age of the new process
 	//4. Prozessstack vorbereiten
 	StackPointer sp;
 	sp.as_int = PROCESS_STACK_BOTTOM(PID);
@@ -243,6 +251,10 @@ ProcessID os_getCurrentProc(void) {
  */
 void os_setSchedulingStrategy(SchedulingStrategy strategy) {
     currentStrategy = strategy;
+	if (strategy = OS_SS_ROUND_ROBIN || strategy = OS_SS_INACTIVE_AGING)
+	{
+		os_resetSchedulingInformation(strategy);
+	}
 }
 
 /*!
