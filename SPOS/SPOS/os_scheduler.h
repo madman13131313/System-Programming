@@ -20,6 +20,7 @@
 // Types
 //----------------------------------------------------------------------------
 
+
 //! The enum specifying which scheduling strategies exist
 typedef enum SchedulingStrategy {
     OS_SS_EVEN,

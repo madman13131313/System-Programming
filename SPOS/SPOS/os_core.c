@@ -145,6 +145,6 @@ void os_errorPStr(char const* str) {
 		    break; // Exit the loop when Enter and Esc are both released
 	    }
     }
-
-   
 }
+
+

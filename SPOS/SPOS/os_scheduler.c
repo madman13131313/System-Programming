@@ -251,7 +251,7 @@ ProcessID os_getCurrentProc(void) {
  */
 void os_setSchedulingStrategy(SchedulingStrategy strategy) {
     currentStrategy = strategy;
-	if (strategy = OS_SS_ROUND_ROBIN || strategy = OS_SS_INACTIVE_AGING)
+	if (strategy == OS_SS_ROUND_ROBIN || strategy == OS_SS_INACTIVE_AGING)
 	{
 		os_resetSchedulingInformation(strategy);
 	}

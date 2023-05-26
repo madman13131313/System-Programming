@@ -29,7 +29,7 @@ SchedulingInformation schedulingInfo;
 void os_resetSchedulingInformation(SchedulingStrategy strategy) {
 	if (strategy == OS_SS_ROUND_ROBIN)
 	{
-		schedulingInfo.timeSlice = os_processes[currentProc].priority;
+		schedulingInfo.timeSlice = (*os_getProcessSlot(os_getCurrentProc())).priority;
 	}
 	if (strategy == OS_SS_INACTIVE_AGING)
 	{
@@ -148,7 +148,7 @@ ProcessID os_Scheduler_InactiveAging(Process const processes[], ProcessID curren
 			schedulingInfo.age[i] += processes[i].priority;
 		}
     }
-	ProcessID next;
+	ProcessID next = current;
 	uint8_t max = 0;
 	for (uint8_t i = 0; i < MAX_NUMBER_OF_PROCESSES; i++){
 		// the oldest process is chosen
@@ -172,6 +172,7 @@ ProcessID os_Scheduler_InactiveAging(Process const processes[], ProcessID curren
 			}
 		}
 	}
+	schedulingInfo.age[next] = processes[next].priority;
     return next;
 }
 

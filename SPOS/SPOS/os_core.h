@@ -19,6 +19,9 @@
 //! Handy define to specify error messages directly
 #define os_error(str) os_errorPStr(PSTR(str))
 
+// Needed to determine where the heap may start in order not to crush global variables unknowingly.
+extern uint8_t const __heap_start;
+
 //----------------------------------------------------------------------------
 // Function headers
 //----------------------------------------------------------------------------

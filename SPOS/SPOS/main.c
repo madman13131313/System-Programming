@@ -20,7 +20,6 @@ int main(void) {
     // Wait and clear the LCD
     delayMs(600);
     lcd_clear();
-
     // Start the operating system
     os_startScheduler();
 
