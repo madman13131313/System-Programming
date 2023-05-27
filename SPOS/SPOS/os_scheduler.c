@@ -16,7 +16,8 @@
 #include "os_taskman.h"
 #include "os_core.h"
 #include "lcd.h"
-
+#include "os_memheap_drivers.h"
+#include "os_memory.h"
 #include <avr/interrupt.h>
 #include <stdbool.h>
 
@@ -130,6 +131,52 @@ void idle(void) {
     }
 }
 
+// Used to kill a running process and clear the corresponding process slot.
+bool os_kill(ProcessID pid){
+	os_enterCriticalSection();
+	if (pid == 0)
+	{
+		os_leaveCriticalSection();
+		return false;
+	}
+	if (pid >= MAX_NUMBER_OF_PROCESSES || os_processes[pid].state == OS_PS_UNUSED)
+	{
+		os_leaveCriticalSection();
+		return false;
+	}
+	if (pid == os_getCurrentProc())
+	{
+		os_processes[pid].state = OS_PS_UNUSED;	
+		os_processes[pid].program = NULL;
+		os_leaveCriticalSection();
+		while(1);
+	}
+	else
+	{
+		os_processes[pid].state = OS_PS_UNUSED;
+		os_processes[pid].program = NULL;
+		os_leaveCriticalSection();
+		return true;
+	}
+}
+
+
+/*
+Encapsulates any running process in order make it possible for processes to terminate
+This wrapper enables the possibility to perfom a few necessary steps after the actual process function has finished.
+*/
+void os_dispatcher(){
+	Program* p = os_processes[currentProc].program;
+	if (*p == NULL)
+	{
+		os_error("dispatcher program null");
+		return;
+	}
+	p();
+	os_kill(currentProc);
+	while (1);
+}
+
 /*!
  *  This function is used to execute a program that has been introduced with
  *  os_registerProgram.
@@ -175,9 +222,10 @@ ProcessID os_exec(Program *program, Priority priority) {
 	StackPointer sp;
 	sp.as_int = PROCESS_STACK_BOTTOM(PID);
 	// die initiale Rücksprungadresse speichern
-	*(sp.as_ptr) = (uint8_t) ((uint16_t)program); // Low byte
+	Program* p = &os_dispatcher;	
+	*(sp.as_ptr) = (uint8_t) ((uint16_t)p); // Low byte
 	sp.as_ptr--;
-	*(sp.as_ptr) = (uint8_t) ((uint16_t)program >> 8); // High byte
+	*(sp.as_ptr) = (uint8_t) ((uint16_t)p >> 8); // High byte
 	sp.as_ptr--;
 	// den initialen Laufzeitkontext speichern
 	for (int i = 0; i < 33; i++) {
@@ -322,4 +370,5 @@ StackChecksum os_getStackChecksum(ProcessID pid) {
 	}
 	return sum;
 }
+
 

@@ -1,19 +1,19 @@
 #include "os_mem_drivers.h"
 #include "defines.h"
 
-MemDriver intSRAM__;
 
-void init(void){}
+void initSRAM_internal(void){}
 	
-MemValue read(MemAddr addr){
-	MemValue value = 0;
-	return value;
+MemValue readSRAM_internal(MemAddr addr){
+	return *((uint8_t*)addr);
 }
 	
-void write(MemAddr addr, MemValue value){}
+void writeSRAM_internal(MemAddr addr, MemValue value){
+	*((uint8_t*)addr) = value;
+}
 	
 MemDriver intSRAM__={
-	.init = init,
-	.read = read,
-	.write = write
+	.init = &initSRAM_internal,
+	.read = &readSRAM_internal,
+	.write = &writeSRAM_internal
 };

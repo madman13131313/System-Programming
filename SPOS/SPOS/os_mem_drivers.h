@@ -7,16 +7,20 @@
 typedef uint16_t MemAddr;
 typedef uint8_t MemValue;
 
+typedef void MemoryInitHnd(void);
+typedef MemValue MemoryReadHnd(MemAddr addr);
+typedef void MemoryWriteHnd(MemAddr addr, MemValue value);
+
 typedef struct MemDriver {
 	// Constants for the characteristics of the memory medium
 	
 	// Function pointers for access routines
-	void (*init)(void);
-	MemValue (*read)(MemAddr addr);
-	void (*write)(MemAddr addr, MemValue value);
+	MemoryInitHnd *init;
+	MemoryReadHnd *read;
+	MemoryWriteHnd *write;
 } MemDriver;
 
-
+extern MemDriver intSRAM__;
 #define intSRAM (&intSRAM__)
 
 #endif
