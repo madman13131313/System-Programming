@@ -21,7 +21,7 @@ MemAddr os_Memory_FirstFit(Heap *heap, size_t size){
 }
 
 MemAddr os_Memory_NextFit(Heap *heap, size_t size){
-	
+	return 0;
 }
 
 MemAddr os_Memory_BestFit(Heap *heap, size_t size){

@@ -82,7 +82,10 @@ ISR(TIMER2_COMPA_vect) {
 	}
 	
 	//5. Setzen des Prozesszustandes des aktuellen Prozesses auf OS_PS_READY
-	os_processes[currentProc].state = OS_PS_READY;
+	if (os_processes[currentProc].state == OS_PS_RUNNING)
+	{
+		os_processes[currentProc].state = OS_PS_READY;
+	}
 	
 	//checksum abspeichern
 	os_processes[currentProc].checksum = os_getStackChecksum(currentProc);
@@ -126,7 +129,7 @@ ISR(TIMER2_COMPA_vect) {
 void idle(void) {
     while (1)
     {
-		lcd_writeString("....");
+		lcd_writeString(".");
 		delayMs(DEFAULT_OUTPUT_DELAY);
     }
 }
@@ -148,7 +151,8 @@ bool os_kill(ProcessID pid){
 	{
 		os_processes[pid].state = OS_PS_UNUSED;	
 		os_processes[pid].program = NULL;
-		os_leaveCriticalSection();
+		while(criticalSectionCount > 0){
+			os_leaveCriticalSection();}
 		while(1);
 	}
 	else

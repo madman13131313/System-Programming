@@ -37,17 +37,16 @@ void setMapEntry (Heap const *heap, MemAddr addr, MemValue value){
 		if (temp % 2 == 0)
 		{
 			setHighNibble(heap, (heap->mapStart + temp / 2), value);
-		}else{
+			}else{
 			setLowNibble(heap, (heap->mapStart + temp / 2), value);
 		}
-	}else{
+		}else{
 		os_error("addr not in range");
 	}
-	
 }
 
 // Function used to get the value of a single map entry, this is made public so the allocation strategies can use it.
-MemValue 	os_getMapEntry (Heap const *heap, MemAddr addr){
+MemValue os_getMapEntry (Heap const *heap, MemAddr addr){
 	MemAddr temp = addr - (heap->useStart);
 	if (temp % 2 == 0)
 	{
@@ -72,17 +71,17 @@ MemAddr os_malloc(Heap* heap, uint16_t size){
 	switch (heap->strategy)
 	{
 		case OS_MEM_FIRST:
-			allocStart = os_Memory_FirstFit(heap, size);
-			break;
+		allocStart = os_Memory_FirstFit(heap, size);
+		break;
 		case OS_MEM_NEXT:
-			allocStart = os_Memory_NextFit(heap, size);
-			break;
+		allocStart = os_Memory_NextFit(heap, size);
+		break;
 		case OS_MEM_WORST:
-			allocStart = os_Memory_WorstFit(heap, size);
-			break;
+		allocStart = os_Memory_WorstFit(heap, size);
+		break;
 		case OS_MEM_BEST:
-			allocStart = os_Memory_BestFit(heap, size);
-			break;
+		allocStart = os_Memory_BestFit(heap, size);
+		break;
 	}
 	if (allocStart != 0)
 	{
@@ -105,48 +104,41 @@ MemAddr os_getFirstByteOfChunk (Heap const *heap, MemAddr addr){
 	}
 	return firstByte;
 }
-	
+
 // This function determines the value of the first nibble of a chunk.
 ProcessID getOwnerOfChunk (Heap const *heap, MemAddr addr){
 	return os_getMapEntry(heap, os_getFirstByteOfChunk(heap, addr));
 }
-	
+
 // Get the size of a chunk on a given address.
 uint16_t os_getChunkSize (Heap const *heap, MemAddr addr){
-	if (os_getMapEntry(heap, addr) == 0)
-	{
-		return 0;
-	}
 	MemAddr firstByte = os_getFirstByteOfChunk(heap, addr);
-	uint16_t size = 1;
-	while (os_getMapEntry(heap, firstByte + size) == 0b00001111)
+	while (((os_getMapEntry(heap, addr) == 0b00001111) || (addr == firstByte)) && (addr < heap->useStart+heap->useSize))
 	{
-		size++;
+		addr++;
 	}
-	return size;
+	addr--;
+	return (addr - firstByte + 1);
 }
 
 // Frees the chunk iff it is owned by the given owner.
-void os_freeOwnerRestricted (Heap *heap, MemAddr addr, ProcessID owner){
-	if (addr >= heap->useStart && addr < heap->useStart + heap->useSize){
-		if (owner == getOwnerOfChunk(heap, addr)){
-			MemAddr firstByte = os_getFirstByteOfChunk(heap, addr);
-			for (MemAddr i = firstByte; i < firstByte + os_getChunkSize(heap, addr); i++)
-			{
-				setMapEntry(heap, i, 0);
-			}
-		}
-		else{
-			//os_error("not the same owner");
-		}
-	}
-	else
-	{
-		os_error("addr not in range");
+void os_freeOwnerRestricted (Heap *heap, MemAddr addr, ProcessID owner) {
+	if(addr < heap->useStart || addr>=heap->useStart+heap->useSize) {
+		os_leaveCriticalSection();
 		return;
 	}
+	MemAddr firstByte = os_getFirstByteOfChunk(heap,addr);
+	if (owner == os_getMapEntry(heap, firstByte) ) {
+		MemAddr lastByte = os_getFirstByteOfChunk(heap, addr) + os_getChunkSize(heap, addr);
+		for( ; firstByte < lastByte; firstByte++) {
+			setMapEntry(heap, firstByte, 0);
+		}
+		} else {
+	}
 }
-	
+
+
+
 // Function used by processes to free their own allocated memory.
 void os_free (Heap *heap, MemAddr addr){
 	os_enterCriticalSection();

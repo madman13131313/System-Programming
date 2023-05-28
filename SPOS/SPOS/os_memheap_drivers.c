@@ -3,25 +3,36 @@
 #include "os_memory_strategies.h"
 #include <avr/pgmspace.h>
 
-Heap intHeap__ = {.driver = intSRAM};
-	
+#define MAPSTART HEAPOFFSET + 0x100
+#define MAPSIZE ((0x10FF - 0x100) / 2 - HEAPOFFSET)/3
+
+Heap intHeap__ =
+{
+	.driver = intSRAM,
+	.mapSize = MAPSIZE,
+	.mapStart = MAPSTART,
+	.name = "intHeap",
+	.strategy = OS_MEM_FIRST,
+	.useSize = MAPSIZE + MAPSIZE,
+	.useStart= MAPSTART + MAPSIZE
+};
+
 void os_initHeaps(){
 	MemAddr mapAddress;
-	MemValue initialValue = 0;
 
 	for (mapAddress = intHeap__.mapStart; mapAddress < (intHeap__.mapStart + intHeap__.mapSize); mapAddress++) {
-		intSRAM__.write(mapAddress, initialValue);
+		*((uint8_t *)mapAddress) = 0b00000000;
 	}
 }
 
 size_t os_getHeapListLength(void) {
-	return 1; 
+	return 1;
 }
 
 Heap* os_lookupHeap(uint8_t index) {
 	if (index == 0) {
 		return intHeap;
-	}else {
-		return NULL; 
+		}else {
+		return NULL;
 	}
 }

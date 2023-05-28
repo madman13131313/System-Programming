@@ -19,7 +19,7 @@ typedef struct Heap{
 	MemAddr useStart;
 	size_t useSize;
 	AllocStrategy strategy;
-	char* name;
+	const char* name;
 } Heap;
 
 extern Heap intHeap__;

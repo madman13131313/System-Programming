@@ -62,16 +62,18 @@ void os_resetProcessSchedulingInformation(ProcessID id) {
  *  \return The next process to be executed determined on the basis of the even strategy.
  */
 ProcessID os_Scheduler_Even(Process const processes[], ProcessID current) {
-    ProcessID next = (current + 1) % MAX_NUMBER_OF_PROCESSES;
-	while ((processes[next].state != OS_PS_READY) || (next == 0))
-	{
-		next = (next + 1) % MAX_NUMBER_OF_PROCESSES;
-		if (next == current)
-		{
-			return 0;
+	ProcessID i;
+	for(i = current + 1; i < MAX_NUMBER_OF_PROCESSES; ++i) {
+		if(processes[i].state==OS_PS_READY) {
+			return i;
 		}
 	}
-	return next;
+	for(i = 1 ; i <= current; ++i) {
+		if(processes[i].state==OS_PS_READY) {
+			return i;
+		}
+	}
+	return 0;
 }
 
 /*!
@@ -116,16 +118,16 @@ ProcessID os_Scheduler_Random(Process const processes[], ProcessID current) {
  *  \return The next process to be executed determined on the basis of the round robin strategy.
  */
 ProcessID os_Scheduler_RoundRobin(Process const processes[], ProcessID current) {
-    if (schedulingInfo.timeSlice != 0)
-    {
+	if (processes[current].state != OS_PS_UNUSED && schedulingInfo.timeSlice > 1)
+	{
 		schedulingInfo.timeSlice--;
 		return current;
-    }else
-    {
+	}else
+	{
 		ProcessID next = os_Scheduler_Even(processes, current);
 		schedulingInfo.timeSlice = processes[next].priority;
-	    return next;
-    }
+		return next;
+	}
 }
 
 /*!
