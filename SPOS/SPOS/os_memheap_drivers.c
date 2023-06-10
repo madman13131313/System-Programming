@@ -23,6 +23,12 @@ void os_initHeaps(){
 	for (mapAddress = intHeap__.mapStart; mapAddress < (intHeap__.mapStart + intHeap__.mapSize); mapAddress++) {
 		*((uint8_t *)mapAddress) = 0b00000000;
 	}
+	// Optimierung
+	for (uint8_t i = 1; i < MAX_NUMBER_OF_PROCESSES; i++)
+	{
+		intHeap__.allocFrameStart[i] = 0;
+		intHeap__.allocFrameEnd[i] = 0;
+	}
 }
 
 size_t os_getHeapListLength(void) {

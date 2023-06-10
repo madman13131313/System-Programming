@@ -151,6 +151,10 @@ bool os_kill(ProcessID pid){
 	{
 		os_processes[pid].state = OS_PS_UNUSED;	
 		os_processes[pid].program = NULL;
+		for (uint8_t i = 0; i < os_getHeapListLength(); ++i)
+		{
+			os_freeProcessMemory(os_lookupHeap(i), pid);
+		}
 		while(criticalSectionCount > 0){
 			os_leaveCriticalSection();}
 		while(1);
@@ -159,6 +163,10 @@ bool os_kill(ProcessID pid){
 	{
 		os_processes[pid].state = OS_PS_UNUSED;
 		os_processes[pid].program = NULL;
+		for (uint8_t i = 0; i < os_getHeapListLength(); ++i)
+		{
+			os_freeProcessMemory(os_lookupHeap(i), pid);
+		}
 		os_leaveCriticalSection();
 		return true;
 	}

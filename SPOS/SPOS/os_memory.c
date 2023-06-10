@@ -90,6 +90,15 @@ MemAddr os_malloc(Heap* heap, uint16_t size){
 		{
 			setMapEntry(heap, i, 0b00001111);
 		}
+		// Optimierung: renew the starting/ending frame of the process
+		if ((heap->allocFrameStart[current] == 0) || ( heap->allocFrameStart[current] > allocStart))
+		{
+			heap->allocFrameStart[current] = allocStart;
+		}
+		if ((heap->allocFrameEnd[current] == 0) || ( heap->allocFrameEnd[current] < allocStart + size -1))
+		{
+			heap->allocFrameEnd[current] = allocStart + size -1;
+		}
 	}
 	os_leaveCriticalSection();
 	return allocStart;
@@ -133,17 +142,56 @@ void os_freeOwnerRestricted (Heap *heap, MemAddr addr, ProcessID owner) {
 		for( ; firstByte < lastByte; firstByte++) {
 			setMapEntry(heap, firstByte, 0);
 		}
-		} else {
 	}
 }
-
-
 
 // Function used by processes to free their own allocated memory.
 void os_free (Heap *heap, MemAddr addr){
 	os_enterCriticalSection();
-	ProcessID current = os_getCurrentProc();
-	os_freeOwnerRestricted(heap, addr, current);
+	ProcessID owner = os_getCurrentProc();
+	os_freeOwnerRestricted(heap, addr, owner);
+	MemAddr firstByte = os_getFirstByteOfChunk(heap,addr);
+	// renew the starting/ending frame of the process
+	// find the new start frame of the process
+	if (heap->allocFrameStart[owner] == firstByte)
+	{
+		heap->allocFrameStart[owner] = 0;
+		MemAddr x = firstByte + 1;
+		while (x < heap->useStart + heap->useSize)
+		{
+			if (os_getMapEntry(heap, x) == owner)
+			{
+				heap->allocFrameStart[owner] = x;
+				break;
+			}
+			x++;
+		}
+	}
+	// find the new end frame of the process
+	if (heap->allocFrameEnd[owner] == os_getFirstByteOfChunk(heap, addr) + os_getChunkSize(heap, addr) - 1)
+	{
+		heap->allocFrameEnd[owner] = 0;
+		MemAddr y = firstByte - 1;
+		while (y >= heap->useStart)
+		{
+			if (getOwnerOfChunk(heap, y) == owner)
+			{
+				heap->allocFrameEnd[owner] = y;
+				break;
+			}
+			y--;
+		}
+	}
+	os_leaveCriticalSection();
+}
+
+// Function that realises the garbage collection.
+void os_freeProcessMemory(Heap *heap, ProcessID pid){
+	os_enterCriticalSection();
+	for (MemAddr i = heap->allocFrameStart[pid]; i <= heap->allocFrameEnd[pid]; i++)
+	{
+		os_freeOwnerRestricted(heap, i, pid);
+	}
 	os_leaveCriticalSection();
 }
 
@@ -178,3 +226,4 @@ void os_setAllocationStrategy(Heap *heap, AllocStrategy allocStrat){
 	heap->strategy = allocStrat;
 	os_leaveCriticalSection();
 }
+

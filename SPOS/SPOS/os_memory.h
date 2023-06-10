@@ -25,4 +25,6 @@ void os_setAllocationStrategy(Heap *heap, AllocStrategy allocStrat);
 
 MemValue os_getMapEntry (Heap const *heap, MemAddr addr);
 
+void os_freeProcessMemory(Heap *heap, ProcessID pid);
+
 #endif

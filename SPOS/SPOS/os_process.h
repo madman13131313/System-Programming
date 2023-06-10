@@ -11,6 +11,7 @@
 #ifndef _OS_PROCESS_H
 #define _OS_PROCESS_H
 
+#include "os_mem_drivers.h"
 #include <stdint.h>
 #include <stdbool.h>
 
