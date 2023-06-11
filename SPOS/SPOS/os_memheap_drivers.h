@@ -26,7 +26,9 @@ typedef struct Heap{
 } Heap;
 
 extern Heap intHeap__;
+extern Heap extHeap__;
 #define intHeap (&intHeap__)
+#define extHeap (&extHeap__)
 
 void os_initHeaps(void);
 

@@ -27,4 +27,6 @@ MemValue os_getMapEntry (Heap const *heap, MemAddr addr);
 
 void os_freeProcessMemory(Heap *heap, ProcessID pid);
 
+MemAddr os_realloc(Heap *heap, MemAddr addr, uint16_t size);
+
 #endif

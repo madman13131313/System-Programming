@@ -22,5 +22,7 @@ typedef struct MemDriver {
 
 extern MemDriver intSRAM__;
 #define intSRAM (&intSRAM__)
+extern MemDriver extSRAM__;
+#define extSRAM (&extSRAM__)
 
 #endif

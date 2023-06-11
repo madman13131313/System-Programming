@@ -227,3 +227,107 @@ void os_setAllocationStrategy(Heap *heap, AllocStrategy allocStrat){
 	os_leaveCriticalSection();
 }
 
+// This will move one Chunk to a new location, 
+// To provide this the content of the old one is copied to the new location, 
+// as well as all Map Entries are set properly since this is a helper function for reallocation, 
+// it only works if the new Chunk is bigger than the old one.
+void moveChunk(Heap *heap, MemAddr oldChunk, size_t oldSize, MemAddr newChunk, size_t newSize){
+	if (newSize > oldSize)
+	{
+		ProcessID pid = getOwnerOfChunk(heap, oldChunk);
+		os_free(heap, oldChunk);
+		// copy the values stored in the old chunk
+		for(MemAddr i = oldChunk; i < oldChunk + oldSize; ++i) {
+			heap->driver->write(newChunk + (i - oldChunk), heap->driver->read(i));
+		}
+		// renew the map entries
+		setMapEntry(heap, newChunk, pid);
+		for(MemAddr i = newChunk + 1; i < newChunk + newSize; ++i) {
+			setMapEntry(heap, i, 15);
+		}
+		// Optimierung: renew the starting/ending frame of the process
+		if ((heap->allocFrameStart[pid] == 0) || ( heap->allocFrameStart[pid] > newChunk))
+		{
+			heap->allocFrameStart[pid] = newChunk;
+		}
+		if ((heap->allocFrameEnd[pid] == 0) || ( heap->allocFrameEnd[pid] < newChunk + newSize -1))
+		{
+			heap->allocFrameEnd[pid] = newChunk + newSize -1;
+		}
+	}
+}
+
+// This is an efficient reallocation routine. 
+// It is used to resize an existing allocated chunk of memory. 
+// If possible, the position of the chunk remains the same.
+// It is only searched for a completely new chunk if everything else does not fit.
+MemAddr os_realloc(Heap *heap, MemAddr addr, uint16_t size){
+	os_enterCriticalSection();
+	ProcessID pid = os_getCurrentProc();
+	if (pid == 0)
+	{
+		os_error("Current Process idle");
+		os_leaveCriticalSection();
+		return 0;
+	}else{
+		MemAddr firstByte = os_getFirstByteOfChunk(heap, addr);
+		// Ein Prozess darf ausschlieﬂlich von ihm selbst allozierten Speicher reallozieren.
+		if(os_getMapEntry(heap,firstByte) != pid) {
+			os_leaveCriticalSection();
+			return 0;
+		}
+		uint16_t oldSize = os_getChunkSize(heap, addr);
+		// If the new size is smaller than the old size, the chunk does not need to move.
+		// We only need to free the redundant memory.
+		if (size <= oldSize) {
+			for(MemAddr i = firstByte + size; i < firstByte + oldSize; ++i) {
+				setMapEntry(heap ,i, 0); // free the redundant memory by setting the corresponding map nibble
+			}
+			os_leaveCriticalSection();
+			return addr;
+		}
+		// If the new size is not smaller than the old size, we need to find a new chunk to reallocate.
+		// 1. We check if there is enough space directly after the original chunk.
+		MemAddr firstAfterOld = firstByte + oldSize;
+		// find out the first occupied byte after the old chunk and so the free space after the old chunk.
+		for(; firstAfterOld < heap->useStart+heap->useSize; ++firstAfterOld) {
+			if(os_getMapEntry(heap,firstAfterOld) != 0) {
+				break;
+			}
+		}
+		uint16_t spaceAfterOld = firstAfterOld - (firstByte + oldSize);
+		if(size - oldSize <= spaceAfterOld) {
+			moveChunk(heap, firstByte, oldSize, firstByte, size);
+			// no need to free anything
+			os_leaveCriticalSection();
+			return firstByte;
+		}
+		// 2. If there is no enough space after the old chunk,
+		// We continue to check the space right before the chunk to see if the space after and the space before together is enough?
+		MemAddr firstBeforeOld = firstByte - 1;
+		// find out the first occupied byte before the old chunk and so the free space before the old chunk.
+		for(; firstBeforeOld >= heap->useStart; firstBeforeOld--) {
+			if(os_getMapEntry(heap,firstBeforeOld) != 0) {
+				break;
+			}
+		}
+		uint16_t spaceBeforeOld = firstByte - firstBeforeOld - 1;
+		if (size - oldSize <= spaceAfterOld + spaceBeforeOld){
+			moveChunk(heap, firstByte, oldSize, firstBeforeOld + 1, size);
+			os_leaveCriticalSection();
+			return firstBeforeOld + 1;
+		}
+		// 3. If the space before and after together is still not enough, we use malloc to allocate a new chunk and release the old chunk.
+		MemAddr realloc = os_malloc(heap, size);
+		// nicht gen¸gend Speicher zur Verf¸gung steht
+		if (realloc == 0) {
+			os_leaveCriticalSection();
+			return 0;
+		}else{
+			moveChunk(heap, firstByte, oldSize, realloc, size);
+			os_leaveCriticalSection();
+			return realloc;
+		}	
+	}
+}
+
