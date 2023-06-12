@@ -5,7 +5,7 @@
 #include "os_memheap_drivers.h"
 #include "os_scheduler.h"
 
-MemAddr os_malloc(Heap* heap, uint16_t size);
+MemAddr os_malloc(Heap* heap, size_t size);
 
 void os_free(Heap *heap, MemAddr addr);
 

@@ -119,20 +119,20 @@ void os_init(void) {
     stdout = lcdout;
     stderr = lcdout;
 
+	
 	// Check the Start of heap
 	if (((uint16_t)&__heap_start) > (HEAPOFFSET + 0x100))
 	{
 		os_error("HEAPOFFSET too small");
 	}
-	os_initHeaps();
 	
     lcd_writeProgString(PSTR("Booting SPOS ..."));
     os_checkResetSource(OS_ALLOWED_RESET_SOURCES);
     delayMs(DEFAULT_OUTPUT_DELAY * 20);
-
     os_initScheduler();
-
     os_systemTime_reset();
+	initMemoryDevices();
+	os_initHeaps();
 }
 
 /*!

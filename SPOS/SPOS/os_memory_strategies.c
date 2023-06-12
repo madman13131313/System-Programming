@@ -1,7 +1,7 @@
 #include "os_memory_strategies.h"
 #include "os_memory.h"
 
-MemAddr lastAddr = 0;
+
 
 MemAddr os_Memory_FirstFit(Heap *heap, size_t size){
 	size_t freeSize = 0;
@@ -21,18 +21,44 @@ MemAddr os_Memory_FirstFit(Heap *heap, size_t size){
 	return 0;
 }
 
-MemAddr os_Memory_NextFit(Heap *heap, size_t size){
-	if (lastAddr == 0)
+MemAddr os_Memory_NextFit(Heap *heap, size_t size)
+{
+	if (heap->lastAddr == 0)
 	{
-		lastAddr = heap->useStart;
+		heap->lastAddr = heap->useStart;
 	}
 	size_t freeSize = 0;
-	for (MemAddr start = lastAddr; start < heap->useStart + heap->useSize; start++){
+	for (MemAddr start = heap->lastAddr; start < heap->useStart + heap->useSize; start++){
 		if (os_getMapEntry(heap, start) == 0){
 			freeSize++;
 			if (freeSize == size)
 			{
-				lastAddr = start + 1;
+				if (start != heap->useStart + heap->useSize - 1)
+				{
+					heap->lastAddr = start + 1;
+				}else{
+					heap->lastAddr = heap->useStart;
+				}
+					return (start - size + 1);				
+			}
+		}
+		else
+		{
+			freeSize = 0;
+		}
+	}
+	freeSize = 0;
+	for (MemAddr start = heap->useStart; start < heap->useStart + heap->useSize; start++){
+		if (os_getMapEntry(heap, start) == 0){
+			freeSize++;
+			if (freeSize == size)
+			{
+				if (start != heap->useStart + heap->useSize - 1)
+				{
+					heap->lastAddr = start + 1;
+				}else{
+					heap->lastAddr = heap->useStart;
+				}
 				return (start - size + 1);
 			}
 		}
@@ -41,63 +67,85 @@ MemAddr os_Memory_NextFit(Heap *heap, size_t size){
 			freeSize = 0;
 		}
 	}
-	for (MemAddr start = heap->useStart; start < lastAddr; start++){
-		if (os_getMapEntry(heap, start) == 0){
-			freeSize++;
-			if (freeSize == size)
-			{
-				lastAddr = start + 1;
-				return (start - size + 1);
-			}
-		}
-		else
-		{
-			freeSize = 0;
-		}
-	}
+	heap->lastAddr = 0;
 	return 0;
 }
 
-MemAddr os_Memory_BestFit(Heap *heap, size_t size){
-	size_t freeSize = 0;
-	size_t min = heap->useSize;
-	MemAddr addr = 0;
-	for (MemAddr start = heap->useStart; start < heap->useStart + heap->useSize; start++){
-		if (os_getMapEntry(heap, start) == 0){
-			freeSize++;
-			
-		}
-		else
+MemAddr os_Memory_BestFit(Heap *heap, size_t size)
+{
+	MemAddr bestInd = 0;
+	size_t bestArea = heap->useSize + 1;
+	
+	for (size_t i = 0; i < heap->useSize;) {
+		size_t currSize = 0;
+		for (size_t j = i; j < heap->useSize; j++)
 		{
-			if ((freeSize >= size) && (freeSize < min))
+			MemValue val = os_getMapEntry(heap, heap->useStart + j);
+			if  (val != 0)
 			{
-				min = freeSize;
-				addr = start - freeSize;
+				break;
 			}
-			freeSize = 0;
+			currSize++;
 		}
+		
+		if (currSize == size)
+		{
+			return heap->useStart + i;
+		}
+		
+		if (currSize > size && currSize < bestArea)
+		{
+			bestInd = i;
+			bestArea = currSize;
+		}
+		
+		i += currSize + 1;
 	}
-	return addr;
+	
+	if (bestArea == heap->useSize + 1) {
+		return 0;
+	}
+	
+	return heap->useStart + bestInd;
 }
 
-MemAddr os_Memory_WorstFit(Heap *heap, size_t size){
-	size_t freeSize = 0;
-	size_t max = 0;
-	MemAddr addr = 0;
-	for (MemAddr start = heap->useStart; start < heap->useStart + heap->useSize; start++){
-		if (os_getMapEntry(heap, start) == 0){
-			freeSize++;
+MemAddr os_Memory_WorstFit(Heap *heap, size_t size)
+{
+	MemAddr worstInd = 0;
+	size_t worstArea = 0;
+	
+	for (size_t i = 0; i < heap->useSize;)
+	{
+		size_t currSize = 0;
+		for (size_t j = i; j < heap->useSize; j++) {
+			MemValue val = os_getMapEntry(heap, heap->useStart + j);
 			
-		}
-		else
-		{
-			if ((freeSize >= size) && (freeSize > max))
+			if  (val != 0)
 			{
-				max = freeSize;
-				addr = start - freeSize;
+				break;
 			}
-			freeSize = 0;
+			currSize++;
 		}
+		if (currSize >= heap->useSize / 2)
+		{
+			return heap->useStart + i;
+		}
+		if (currSize > size && currSize > worstArea)
+		{
+			worstInd = i;
+			worstArea = currSize;
+		}
+		
+		
+		i += currSize + 1;
 	}
-	return addr;
+	
+	
+	
+	if (worstArea == 0)
+	{
+		return 0;
+	}
+	
+	return heap->useStart + worstInd;
 }

@@ -17,29 +17,30 @@ Heap intHeap__ =
 	.name = "intHeap",
 	.strategy = OS_MEM_FIRST,
 	.useSize = MAPSIZE + MAPSIZE,
-	.useStart= MAPSTART + MAPSIZE
+	.useStart= MAPSTART + MAPSIZE,
 };
 
 Heap extHeap__ =
 {
 	.driver = extSRAM,
 	.mapSize = EXTERNAL_MAPSIZE,
-	.mapStart = EXTERNAL_MAPSIZE,
+	.mapStart = EXTERNAL_MAPSTART,
 	.name = "extHeap",
 	.strategy = OS_MEM_FIRST,
 	.useSize = (uint16_t)EXTERNAL_MAPSIZE*2,
-	.useStart= (uint16_t)EXTERNAL_MAPSIZE + EXTERNAL_MAPSIZE
+	.useStart= (uint16_t)EXTERNAL_MAPSTART + EXTERNAL_MAPSIZE
 };
 
-void os_initHeaps(){
+void os_initHeaps () {
 	MemAddr mapAddress;
-
-	for (mapAddress = intHeap__.mapStart; mapAddress < (intHeap__.mapStart + intHeap__.mapSize); mapAddress++) {
-		*((uint8_t *)mapAddress) = 0b00000000;
+	for(mapAddress = intHeap__.mapStart; mapAddress<intHeap__.mapStart +intHeap__.mapSize; mapAddress++) {
+		intHeap__.driver->write(mapAddress, 0b00000000);
 	}
-	for (mapAddress = extHeap__.mapStart; mapAddress < (extHeap__.mapStart + extHeap__.mapSize); mapAddress++) {
-		*((uint8_t *)mapAddress) = 0b00000000;
+	for(mapAddress = extHeap__.mapStart; mapAddress<extHeap__.mapStart +extHeap__.mapSize; mapAddress++) {
+		extHeap__.driver->write(mapAddress, 0b00000000);
 	}
+	intHeap__.lastAddr = 0;
+	extHeap__.lastAddr = 0;
 	// Optimierung
 	for (uint8_t i = 1; i < MAX_NUMBER_OF_PROCESSES; i++)
 	{

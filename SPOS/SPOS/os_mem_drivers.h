@@ -25,4 +25,6 @@ extern MemDriver intSRAM__;
 extern MemDriver extSRAM__;
 #define extSRAM (&extSRAM__)
 
+void initMemoryDevices(void);
+
 #endif

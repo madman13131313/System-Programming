@@ -22,12 +22,7 @@ void os_spi_init() {
 // Performs a SPI send This method blocks until the data exchange is completed.
 // Additionally, this method returns the byte which is received in exchange during the communication.
 uint8_t os_spi_send(uint8_t data) {
-	uint8_t sreg = SREG; // Speichern des Global Interrupt Enable Bit (GIEB) aus dem SREG
-	SREG &= ~(1 << 7); // Deaktivieren des Global Interrupt Enable Bit
-
-	// Warte, bis das SPI-Modul bereit für eine Übertragung ist
-	while (!(SPSR & (1 << SPIF))) {}
-
+	
 	// Setze das zu sendende Datenbyte
 	SPDR = data;
 
@@ -35,15 +30,13 @@ uint8_t os_spi_send(uint8_t data) {
 	while (!(SPSR & (1 << SPIF))) {}
 
 	uint8_t receivedByte = SPDR;
-	SREG = sreg; // Re-enable global interrupts
 	return receivedByte;
 }
 
 // Performs a SPI read This method blocks until the exchange is completed.
 uint8_t os_spi_receive(void) {
-	uint8_t sreg = SREG; // Speichern des Global Interrupt Enable Bit (GIEB) aus dem SREG
-	SREG &= ~(1 << 7); // Deaktivieren des Global Interrupt Enable Bit
+	
 	uint8_t receivedByte = os_spi_send(0xFF); // Sende ein Dummy-Byte, um Daten zu empfangen
-	SREG = sreg; // Re-enable global interrupts
+
 	return receivedByte;
 }

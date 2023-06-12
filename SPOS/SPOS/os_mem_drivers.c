@@ -53,29 +53,31 @@ void transfer_address(MemAddr addr){
 void initSRAM_external(void){
 	os_spi_init();
 	select_memory();
-	uint8_t mode = os_spi_send(0x05); // Lese den aktuellen MODE register Wert
-	mode &= 0b00111111; // Setze Bit 7 und Bit 6 auf 0
-	set_operation_mode(mode);
+	set_operation_mode(0);
 	deselect_memory();
 }
 
 // Private function to read a single byte to the external SRAM It will not check if its call is valid.
 MemValue readSRAM_external(MemAddr addr){
+	os_enterCriticalSection();
 	select_memory();
 	os_spi_send(0x03);
 	transfer_address(addr);
 	MemValue data = os_spi_receive();
 	deselect_memory();
+	os_leaveCriticalSection();
 	return data;
 }
 	
 // Private function to write a single byte to the external SRAM It will not check if its call is valid.	
 void writeSRAM_external(MemAddr addr, MemValue value){
+	os_enterCriticalSection();
 	select_memory();
 	os_spi_send(0x02);
 	transfer_address(addr);
 	os_spi_send(value);
 	deselect_memory();
+	os_leaveCriticalSection();
 }	
 	
 // Function that needs to be called once in order to initialise all used memories such as the internal SRAM etc

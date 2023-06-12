@@ -31,17 +31,12 @@ MemValue getHighNibble (Heap const *heap, MemAddr addr){
 
 // This function is used to set a heap map entry on a specific heap.
 void setMapEntry (Heap const *heap, MemAddr addr, MemValue value){
-	if (addr >= heap->useStart && addr < heap->useStart + heap->useSize)
+	MemAddr temp = addr - (heap->useStart);
+	if (temp % 2 == 0)
 	{
-		MemAddr temp = addr - (heap->useStart);
-		if (temp % 2 == 0)
-		{
-			setHighNibble(heap, (heap->mapStart + temp / 2), value);
-			}else{
-			setLowNibble(heap, (heap->mapStart + temp / 2), value);
-		}
-		}else{
-		os_error("addr not in range");
+		setHighNibble(heap, (heap->mapStart + temp / 2), value);
+	}else{
+		setLowNibble(heap, (heap->mapStart + temp / 2), value);
 	}
 }
 
@@ -58,13 +53,18 @@ MemValue os_getMapEntry (Heap const *heap, MemAddr addr){
 }
 
 // Function used to allocate private memory.
-MemAddr os_malloc(Heap* heap, uint16_t size){
+MemAddr os_malloc(Heap* heap, size_t size){
 	os_enterCriticalSection();
 	MemAddr allocStart = 0;
 	ProcessID current = os_getCurrentProc();
 	if (current == 0)
 	{
 		os_error("Current Process idle");
+		os_leaveCriticalSection();
+		return 0;
+	}
+	if ((size > heap->useSize) || (size == 0))
+	{
 		os_leaveCriticalSection();
 		return 0;
 	}
@@ -99,9 +99,12 @@ MemAddr os_malloc(Heap* heap, uint16_t size){
 		{
 			heap->allocFrameEnd[current] = allocStart + size -1;
 		}
+		os_leaveCriticalSection();
+		return allocStart;
 	}
 	os_leaveCriticalSection();
-	return allocStart;
+	return 0;
+	
 }
 
 // Get the address of the first byte of chunk.
@@ -133,10 +136,9 @@ uint16_t os_getChunkSize (Heap const *heap, MemAddr addr){
 // Frees the chunk iff it is owned by the given owner.
 void os_freeOwnerRestricted (Heap *heap, MemAddr addr, ProcessID owner) {
 	if(addr < heap->useStart || addr>=heap->useStart+heap->useSize) {
-		os_leaveCriticalSection();
 		return;
 	}
-	MemAddr firstByte = os_getFirstByteOfChunk(heap,addr);
+	MemAddr firstByte = os_getFirstByteOfChunk(heap, addr);
 	if (owner == os_getMapEntry(heap, firstByte) ) {
 		MemAddr lastByte = os_getFirstByteOfChunk(heap, addr) + os_getChunkSize(heap, addr);
 		for( ; firstByte < lastByte; firstByte++) {
@@ -149,8 +151,9 @@ void os_freeOwnerRestricted (Heap *heap, MemAddr addr, ProcessID owner) {
 void os_free (Heap *heap, MemAddr addr){
 	os_enterCriticalSection();
 	ProcessID owner = os_getCurrentProc();
-	os_freeOwnerRestricted(heap, addr, owner);
 	MemAddr firstByte = os_getFirstByteOfChunk(heap,addr);
+	MemAddr lastByte = os_getFirstByteOfChunk(heap, addr) + os_getChunkSize(heap, addr);
+	os_freeOwnerRestricted(heap, addr, owner);
 	// renew the starting/ending frame of the process
 	// find the new start frame of the process
 	if (heap->allocFrameStart[owner] == firstByte)
@@ -168,7 +171,7 @@ void os_free (Heap *heap, MemAddr addr){
 		}
 	}
 	// find the new end frame of the process
-	if (heap->allocFrameEnd[owner] == os_getFirstByteOfChunk(heap, addr) + os_getChunkSize(heap, addr) - 1)
+	if (heap->allocFrameEnd[owner] == lastByte - 1)
 	{
 		heap->allocFrameEnd[owner] = 0;
 		MemAddr y = firstByte - 1;
@@ -227,9 +230,9 @@ void os_setAllocationStrategy(Heap *heap, AllocStrategy allocStrat){
 	os_leaveCriticalSection();
 }
 
-// This will move one Chunk to a new location, 
-// To provide this the content of the old one is copied to the new location, 
-// as well as all Map Entries are set properly since this is a helper function for reallocation, 
+// This will move one Chunk to a new location,
+// To provide this the content of the old one is copied to the new location,
+// as well as all Map Entries are set properly since this is a helper function for reallocation,
 // it only works if the new Chunk is bigger than the old one.
 void moveChunk(Heap *heap, MemAddr oldChunk, size_t oldSize, MemAddr newChunk, size_t newSize){
 	if (newSize > oldSize)
@@ -257,8 +260,8 @@ void moveChunk(Heap *heap, MemAddr oldChunk, size_t oldSize, MemAddr newChunk, s
 	}
 }
 
-// This is an efficient reallocation routine. 
-// It is used to resize an existing allocated chunk of memory. 
+// This is an efficient reallocation routine.
+// It is used to resize an existing allocated chunk of memory.
 // If possible, the position of the chunk remains the same.
 // It is only searched for a completely new chunk if everything else does not fit.
 MemAddr os_realloc(Heap *heap, MemAddr addr, uint16_t size){
@@ -269,7 +272,7 @@ MemAddr os_realloc(Heap *heap, MemAddr addr, uint16_t size){
 		os_error("Current Process idle");
 		os_leaveCriticalSection();
 		return 0;
-	}else{
+		}else{
 		MemAddr firstByte = os_getFirstByteOfChunk(heap, addr);
 		// Ein Prozess darf ausschlieﬂlich von ihm selbst allozierten Speicher reallozieren.
 		if(os_getMapEntry(heap,firstByte) != pid) {
@@ -323,11 +326,11 @@ MemAddr os_realloc(Heap *heap, MemAddr addr, uint16_t size){
 		if (realloc == 0) {
 			os_leaveCriticalSection();
 			return 0;
-		}else{
+			}else{
 			moveChunk(heap, firstByte, oldSize, realloc, size);
 			os_leaveCriticalSection();
 			return realloc;
-		}	
+		}
 	}
 }
 

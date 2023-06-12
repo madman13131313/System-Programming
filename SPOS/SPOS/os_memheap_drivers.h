@@ -20,6 +20,7 @@ typedef struct Heap{
 	size_t useSize;
 	AllocStrategy strategy;
 	const char* name;
+	MemAddr lastAddr;
 	// Optimierung
 	MemAddr allocFrameStart[MAX_NUMBER_OF_PROCESSES];
 	MemAddr allocFrameEnd[MAX_NUMBER_OF_PROCESSES];
