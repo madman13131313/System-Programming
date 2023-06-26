@@ -46,6 +46,11 @@
  */
 #define MAX_NUMBER_OF_PROCESSES     8
 
+// Shared memory
+#define SHARED_MEMORY 8
+#define SHARED_MEMORY_WRITING 9
+#define SHARED_MEMORY_READING 10
+
 //! Standard priority for newly created processes
 #define DEFAULT_PRIORITY            2
 

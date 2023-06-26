@@ -71,17 +71,17 @@ MemAddr os_malloc(Heap* heap, size_t size){
 	switch (heap->strategy)
 	{
 		case OS_MEM_FIRST:
-		allocStart = os_Memory_FirstFit(heap, size);
-		break;
+			allocStart = os_Memory_FirstFit(heap, size);
+			break;
 		case OS_MEM_NEXT:
-		allocStart = os_Memory_NextFit(heap, size);
-		break;
+			allocStart = os_Memory_NextFit(heap, size);
+			break;
 		case OS_MEM_WORST:
-		allocStart = os_Memory_WorstFit(heap, size);
-		break;
+			allocStart = os_Memory_WorstFit(heap, size);
+			break;
 		case OS_MEM_BEST:
-		allocStart = os_Memory_BestFit(heap, size);
-		break;
+			allocStart = os_Memory_BestFit(heap, size);
+			break;
 	}
 	if (allocStart != 0)
 	{
@@ -105,6 +105,51 @@ MemAddr os_malloc(Heap* heap, size_t size){
 	os_leaveCriticalSection();
 	return 0;
 	
+}
+
+// Function used to allocate shared memory.
+MemAddr os_sh_malloc(Heap *heap, size_t size){
+	os_enterCriticalSection();
+	MemAddr allocStart = 0;
+	ProcessID current = os_getCurrentProc();
+	if (current == 0)
+	{
+		os_error("Current Process idle");
+		os_leaveCriticalSection();
+		return 0;
+	}
+	if ((size > heap->useSize) || (size == 0))
+	{
+		os_leaveCriticalSection();
+		return 0;
+	}
+	switch (heap->strategy)
+	{
+		case OS_MEM_FIRST:
+			allocStart = os_Memory_FirstFit(heap, size);
+			break;
+		case OS_MEM_NEXT:
+			allocStart = os_Memory_NextFit(heap, size);
+			break;
+		case OS_MEM_WORST:
+			allocStart = os_Memory_WorstFit(heap, size);
+			break;
+		case OS_MEM_BEST:
+			allocStart = os_Memory_BestFit(heap, size);
+			break;
+	}
+	if (allocStart != 0)
+	{
+		setMapEntry(heap, allocStart, SHARED_MEMORY);
+		for (MemAddr i = allocStart + 1; i < allocStart + size; i++)
+		{
+			setMapEntry(heap, i, 0b00001111);
+		}
+		os_leaveCriticalSection();
+		return allocStart;
+	}
+	os_leaveCriticalSection();
+	return 0;
 }
 
 // Get the address of the first byte of chunk.
@@ -188,6 +233,23 @@ void os_free (Heap *heap, MemAddr addr){
 	os_leaveCriticalSection();
 }
 
+// Function used by processes to free shared memory.
+void os_sh_free(Heap *heap, MemAddr *addr){
+	os_enterCriticalSection();
+	MemValue value = os_getMapEntry(heap, os_getFirstByteOfChunk(heap, *addr));
+	if(value < SHARED_MEMORY) {
+		os_error("sh_free_pidOwned");
+		os_leaveCriticalSection();
+		return;
+	}
+	while(value != SHARED_MEMORY) {
+		os_yield();
+		value = os_getMapEntry(heap, os_getFirstByteOfChunk(heap, *addr));
+	}
+	os_freeOwnerRestricted(heap, *addr, SHARED_MEMORY);
+	os_leaveCriticalSection();
+}
+
 // Function that realises the garbage collection.
 void os_freeProcessMemory(Heap *heap, ProcessID pid){
 	os_enterCriticalSection();
@@ -230,10 +292,11 @@ void os_setAllocationStrategy(Heap *heap, AllocStrategy allocStrat){
 	os_leaveCriticalSection();
 }
 
-// This will move one Chunk to a new location,
-// To provide this the content of the old one is copied to the new location,
-// as well as all Map Entries are set properly since this is a helper function for reallocation,
-// it only works if the new Chunk is bigger than the old one.
+/* This will move one Chunk to a new location,
+ * To provide this the content of the old one is copied to the new location,
+ * as well as all Map Entries are set properly since this is a helper function for reallocation,
+ * it only works if the new Chunk is bigger than the old one.
+ */
 void moveChunk(Heap *heap, MemAddr oldChunk, size_t oldSize, MemAddr newChunk, size_t newSize){
 	if (newSize > oldSize)
 	{
@@ -260,10 +323,11 @@ void moveChunk(Heap *heap, MemAddr oldChunk, size_t oldSize, MemAddr newChunk, s
 	}
 }
 
-// This is an efficient reallocation routine.
-// It is used to resize an existing allocated chunk of memory.
-// If possible, the position of the chunk remains the same.
-// It is only searched for a completely new chunk if everything else does not fit.
+/* This is an efficient reallocation routine.
+ * It is used to resize an existing allocated chunk of memory.
+ * If possible, the position of the chunk remains the same.
+ * It is only searched for a completely new chunk if everything else does not fit.
+ */
 MemAddr os_realloc(Heap *heap, MemAddr addr, uint16_t size){
 	os_enterCriticalSection();
 	ProcessID pid = os_getCurrentProc();
@@ -272,7 +336,8 @@ MemAddr os_realloc(Heap *heap, MemAddr addr, uint16_t size){
 		os_error("Current Process idle");
 		os_leaveCriticalSection();
 		return 0;
-		}else{
+	}
+	else{
 		MemAddr firstByte = os_getFirstByteOfChunk(heap, addr);
 		// Ein Prozess darf ausschlieﬂlich von ihm selbst allozierten Speicher reallozieren.
 		if(os_getMapEntry(heap,firstByte) != pid) {
@@ -332,5 +397,118 @@ MemAddr os_realloc(Heap *heap, MemAddr addr, uint16_t size){
 			return realloc;
 		}
 	}
+}
+
+// Function that should be private but is used by some Testtasks.
+MemAddr os_sh_readOpen(Heap const *heap, MemAddr const *ptr){
+	os_enterCriticalSection();
+	MemValue value = os_getMapEntry(heap, os_getFirstByteOfChunk(heap, *ptr));
+	if (value < 8) {
+		os_error("os_sh_readOpen error");
+		os_leaveCriticalSection();
+		return 0;
+	} 
+	else {
+		while (value == SHARED_MEMORY_WRITING){
+			os_yield();
+			value = os_getMapEntry(heap, os_getFirstByteOfChunk(heap, *ptr));
+		}
+		switch (value){
+			case SHARED_MEMORY:
+				setMapEntry(heap, os_getFirstByteOfChunk(heap, *ptr), SHARED_MEMORY_READING);
+				break;
+			case SHARED_MEMORY_READING:
+				break;
+			default:
+				os_error("os_sh_readOpen default error");
+				os_leaveCriticalSection();
+				return 0;
+				break;
+		}
+	}
+	os_leaveCriticalSection();
+	return os_getFirstByteOfChunk(heap, *ptr);
+}
+
+// Function that should be private but is used by some Testtasks.
+MemAddr os_sh_writeOpen(Heap const *heap, MemAddr const *ptr){
+	os_enterCriticalSection();
+	MemValue value = os_getMapEntry(heap, os_getFirstByteOfChunk(heap, *ptr));
+	if (value < 8) {
+		os_error("os_sh_writeOpen error");
+		os_leaveCriticalSection();
+		return 0;
+	} else {
+		while(value != SHARED_MEMORY){
+			os_yield();		
+			value = os_getMapEntry(heap, os_getFirstByteOfChunk(heap, *ptr));
+		}
+		setMapEntry(heap, os_getFirstByteOfChunk(heap, *ptr), SHARED_MEMORY_WRITING);
+	}
+	os_leaveCriticalSection();
+	return os_getFirstByteOfChunk(heap, *ptr);
+}
+
+// Function that should be private but is used by some Testtasks.
+void os_sh_close(Heap const *heap, MemAddr addr){
+	os_enterCriticalSection();
+	MemValue value = os_getMapEntry(heap, os_getFirstByteOfChunk(heap, addr));
+	switch (value)
+	{
+		case SHARED_MEMORY:
+			break;
+		case SHARED_MEMORY_WRITING:
+			setMapEntry(heap, os_getFirstByteOfChunk(heap, addr), SHARED_MEMORY);
+			break;
+		case SHARED_MEMORY_READING:
+			setMapEntry(heap, os_getFirstByteOfChunk(heap, addr),  SHARED_MEMORY);
+			break;
+		default:
+			os_error("os_sh_close default error");
+			break;
+	}
+	os_leaveCriticalSection();
+}
+
+// Function used to write to shared memory. 
+void os_sh_write(Heap const *heap, MemAddr const *ptr, uint16_t offset, MemValue const *dataSrc, uint16_t length){
+	if(*ptr < heap->useStart || *ptr >= heap->useStart+heap->useSize) {
+		os_error("os_sh_write outbounded");
+		return;
+	}
+	MemAddr gate = os_sh_writeOpen (heap, ptr);
+	MemAddr index = gate;
+	while(offset > 0) {
+		++index;
+		--offset;
+	}
+	while (length > 0) {
+		heap->driver->write(index, *dataSrc);
+		++dataSrc;
+		++index;
+		--length;
+	}
+	os_sh_close(heap, gate);
+}
+
+// Function used to read from shared memory.
+void os_sh_read(Heap const *heap, MemAddr const *ptr, uint16_t offset, MemValue *dataDest, uint16_t length){
+	if(*ptr < heap->useStart || *ptr >= heap->useStart+heap->useSize) {
+		os_error("os_sh_read outbounded");
+		return;
+	}
+	MemAddr gate = os_sh_readOpen (heap, ptr);
+	MemAddr index = gate;
+	while(offset > 0) {
+		++index;
+		--offset;
+	}
+	while (length > 0) {
+		*dataDest = heap->driver->read(index);
+		++dataDest;
+		++index;
+		--length;
+	}
+	os_sh_close(heap, gate);
 }
 
