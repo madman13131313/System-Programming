@@ -4,6 +4,7 @@
 #include "lcd.h"
 #include "os_input.h"
 #include "os_memheap_drivers.h"
+#include "os_scheduling_strategies.h"
 
 #include <stdio.h>
 #include <avr/interrupt.h>
@@ -130,6 +131,7 @@ void os_init(void) {
     os_checkResetSource(OS_ALLOWED_RESET_SOURCES);
     delayMs(DEFAULT_OUTPUT_DELAY * 20);
     os_initScheduler();
+	os_initSchedulingInformation();
     os_systemTime_reset();
 	initMemoryDevices();
 	os_initHeaps();

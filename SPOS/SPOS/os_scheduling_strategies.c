@@ -49,6 +49,9 @@ void os_resetSchedulingInformation(SchedulingStrategy strategy) {
  */
 void os_resetProcessSchedulingInformation(ProcessID id) {
     schedulingInfo.age[id] = 0;
+	MLFQ_removePID(id);
+	uint8_t prio = os_getProcessSlot(id)->priority;
+	pqueue_append(MLFQ_getQueue(MLFQ_MapToQueue(prio)), id);
 }
 
 /*!
@@ -64,14 +67,24 @@ void os_resetProcessSchedulingInformation(ProcessID id) {
 ProcessID os_Scheduler_Even(Process const processes[], ProcessID current) {
 	ProcessID i;
 	for(i = current + 1; i < MAX_NUMBER_OF_PROCESSES; ++i) {
-		if(processes[i].state==OS_PS_READY) {
+		if(processes[i].state == OS_PS_READY) {
 			return i;
+		}
+		if(processes[i].state == OS_PS_BLOCKED) {
+			os_getProcessSlot(i)->state = OS_PS_READY;
 		}
 	}
-	for(i = 1 ; i <= current; ++i) {
-		if(processes[i].state==OS_PS_READY) {
+	for(i = 1 ; i <= MAX_NUMBER_OF_PROCESSES; ++i) {
+		if(processes[i].state == OS_PS_READY) {
 			return i;
 		}
+		if(processes[i].state == OS_PS_BLOCKED) {
+			os_getProcessSlot(i)->state = OS_PS_READY;
+		}
+	}
+	for(i = 1 ; i <= MAX_NUMBER_OF_PROCESSES; ++i) {
+		if(processes[i].state == OS_PS_READY) {
+			return i;}
 	}
 	return 0;
 }
@@ -94,6 +107,10 @@ ProcessID os_Scheduler_Random(Process const processes[], ProcessID current) {
 		{
 			readyProcesses[numReady] = i;
 			numReady++;
+		}
+		if (processes[i].state == OS_PS_BLOCKED)
+		{
+			os_getProcessSlot(i)->state = OS_PS_READY;
 		}
 	}
 	
@@ -118,7 +135,7 @@ ProcessID os_Scheduler_Random(Process const processes[], ProcessID current) {
  *  \return The next process to be executed determined on the basis of the round robin strategy.
  */
 ProcessID os_Scheduler_RoundRobin(Process const processes[], ProcessID current) {
-	if (processes[current].state != OS_PS_UNUSED && schedulingInfo.timeSlice > 1)
+	if (processes[current].state != OS_PS_UNUSED && processes[current].state != OS_PS_BLOCKED && schedulingInfo.timeSlice > 1)
 	{
 		schedulingInfo.timeSlice--;
 		return current;
@@ -145,7 +162,7 @@ ProcessID os_Scheduler_InactiveAging(Process const processes[], ProcessID curren
 	// the age of every waiting process is increased by its priority
     for (uint8_t i = 0; i < MAX_NUMBER_OF_PROCESSES; i++)
     {
-		if (processes[i].state == OS_PS_READY)
+		if ((processes[i].state==OS_PS_READY))
 		{
 			schedulingInfo.age[i] += processes[i].priority;
 		}
@@ -153,26 +170,32 @@ ProcessID os_Scheduler_InactiveAging(Process const processes[], ProcessID curren
 	ProcessID next = current;
 	uint8_t max = 0;
 	for (uint8_t i = 0; i < MAX_NUMBER_OF_PROCESSES; i++){
-		// the oldest process is chosen
-		if (schedulingInfo.age[i] > max)
+		if (processes[i].state == OS_PS_BLOCKED)
 		{
-			max = schedulingInfo.age[i];
-			next = i;
-		// If the oldest process is not distinct, the one with the highest priority is chosen
-		}else if (schedulingInfo.age[i] == max)
-		{
-			if (processes[i].priority > processes[next].priority)
+			os_getProcessSlot(i)->state = OS_PS_READY;
+		}
+		else{
+			// the oldest process is chosen
+			if (schedulingInfo.age[i] > max)
 			{
+				max = schedulingInfo.age[i];
 				next = i;
-			// If this is not distinct as well, the one with the lower ProcessID is chosen
-			}else if (processes[i].priority == processes[next].priority)
+				// If the oldest process is not distinct, the one with the highest priority is chosen
+			}else if (schedulingInfo.age[i] == max)
 			{
-				if (i < next)
+				if (processes[i].priority > processes[next].priority)
 				{
 					next = i;
+					// If this is not distinct as well, the one with the lower ProcessID is chosen
+				}else if (processes[i].priority == processes[next].priority)
+				{
+					if (i < next)
+					{
+						next = i;
+					}
 				}
 			}
-		}
+		}	
 	}
 	schedulingInfo.age[next] = processes[next].priority;
     return next;
@@ -194,3 +217,173 @@ ProcessID os_Scheduler_RunToCompletion(Process const processes[], ProcessID curr
     }
     return os_Scheduler_Even(processes, current);
 }
+
+
+// This function implements the multilevel-feedback-queue with 4 priority-classes. 
+// Every process is inserted into a queue of a priority-class 
+// and gets a default amount of timeslices which are class dependent. 
+// If a process has no timeslices left, it is moved to the next class. 
+// If a process yields, it is moved to the end of the queue.
+ProcessID os_Scheduler_MLFQ(Process const processes[], ProcessID current){
+	// check from the highest priority class
+	for (uint8_t q = 3; q >= 0; q--)
+	{
+		ProcessQueue* queue = schedulingInfo.queues[q];
+		while (pqueue_hasNext(queue))
+		{
+			ProcessID id = queue->data[queue->tail];
+			if (processes[id].state != OS_PS_UNUSED)
+			{
+				if (processes[id].state == OS_PS_BLOCKED)
+				{
+					os_getProcessSlot(id)->state = OS_PS_READY;
+					pqueue_removePID(queue, id);
+					pqueue_append(queue, id);
+				}
+				else{
+					schedulingInfo.zeitScheiben[id]--;
+					// if the time slice of the process in this class turns to 0, put the process into the lower class
+					if (schedulingInfo.zeitScheiben[id] == 0)
+					{	
+						if (q > 0)
+						{
+							pqueue_removePID(queue, id);
+							pqueue_append(schedulingInfo.queues[q-1], id);
+							// initialize the new time slice of the process in the lower class
+							schedulingInfo.zeitScheiben[id] = MLFQ_getDefaultTimeslice(q-1);
+						}
+						// Befindet sich der Prozess bereits in der niedrigsten Klasse
+						else{
+							pqueue_removePID(queue, id);
+							pqueue_append(queue, id);
+							// renew the time slice of the process
+							schedulingInfo.zeitScheiben[id] = MLFQ_getDefaultTimeslice(q);
+						}
+						
+					}
+					return id;
+				}	
+			}
+			else{
+				pqueue_removePID(queue, id);
+			}
+		}
+	}
+	return 0;
+}
+
+// Initializes the given ProcessQueue with a predefined size.
+void pqueue_init(ProcessQueue *queue){
+	queue->size = MAX_NUMBER_OF_PROCESSES;
+	queue->data = (ProcessID*)malloc(sizeof(ProcessID) * (queue->size));
+	queue->head = 0;
+	queue->tail = 0;
+}
+
+// Resets the given ProcessQueue.
+void pqueue_reset(ProcessQueue *queue){
+	queue->head = 0;
+	queue->tail = 0;
+}
+
+// Checks whether there is next a ProcessID.
+bool pqueue_hasNext(const ProcessQueue *queue){
+	return queue->head != queue->tail;
+}
+
+// Returns the first ProcessID of the given ProcessQueue.
+ProcessID pqueue_getFirst(const ProcessQueue *queue){
+	if (pqueue_hasNext(queue)) {
+		return queue->data[queue->head];
+	} else {
+		return INVALID_PROCESS;
+	}
+}
+
+// Drops the first ProcessID of the given ProcessQueue.
+void pqueue_dropFirst(ProcessQueue *queue){
+	if (pqueue_hasNext(queue)) {
+		queue->head = (queue->head - 1) % queue->size;
+	}
+}
+
+// Appends a ProcessID to the given ProcessQueue.
+void pqueue_append(ProcessQueue *queue, ProcessID pid){
+	 queue->data[queue->head] = pid;
+	 queue->head = (queue->head + 1) % queue->size;
+}
+
+// Removes a ProcessID from the given ProcessQueue.
+void pqueue_removePID(ProcessQueue *queue, ProcessID pid){
+	if (!pqueue_hasNext(queue)) {
+		return; 
+	}
+	uint8_t curr = queue->tail;
+	uint8_t count = (queue->head - queue->tail + queue->size) % queue->size;
+	for (uint8_t i = 0; i < count; i++) {
+		if (queue->data[curr] == pid) {
+			for (uint8_t j = curr; j < count - 1; j++) {
+				queue->data[j] = queue->data[j + 1];
+			}
+			pqueue_dropFirst(queue);
+			break;
+		}
+		curr = (curr + 1) % queue->size;
+	}
+}
+
+// Initialises the scheduling information.
+void os_initSchedulingInformation(void){
+	for (int i = 0; i < 4; i++) {
+		pqueue_init(schedulingInfo.queues[i]);
+	}
+	for (uint8_t i = 0; i < MAX_NUMBER_OF_PROCESSES; i++)
+	{
+		uint8_t prio = os_getProcessSlot(i)->priority;
+		pqueue_append(MLFQ_getQueue(MLFQ_MapToQueue(prio)), i);
+		schedulingInfo.zeitScheiben[i] = MLFQ_getDefaultTimeslice(MLFQ_MapToQueue(prio));
+	}
+}
+
+// Returns the corresponding ProcessQueue.
+ProcessQueue* MLFQ_getQueue(uint8_t queueID){
+	if (queueID < 4) {
+		return schedulingInfo.queues[queueID];
+	}else {
+		return NULL;  // Index ist ungültig
+	}
+}
+
+// Function that removes the given ProcessID from the ProcessQueues.
+void MLFQ_removePID(ProcessID pid){
+	for (int i = 0; i < 4; i++) {
+		pqueue_removePID(schedulingInfo.queues[i], pid);
+	}
+}
+
+// Returns the default number of timeslices for a specific ProcessQueue/priority class.
+uint8_t MLFQ_getDefaultTimeslice(uint8_t queueID){
+	uint8_t timeSlice = 0;
+	switch(queueID){
+		case 0:
+			timeSlice = 8;
+			break;
+		case 1:
+			timeSlice = 4;
+			break;
+		case 2:
+			timeSlice = 2;
+			break;
+		case 3:
+			timeSlice = 1;
+			break;
+	}
+	return timeSlice;
+}
+
+// Maps a process-priority to a priority class.
+uint8_t MLFQ_MapToQueue(Priority prio){
+	uint8_t i = ((prio & 0b11000000) >> 6);
+	return i;
+}
+

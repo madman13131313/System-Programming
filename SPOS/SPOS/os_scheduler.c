@@ -56,6 +56,28 @@ ISR(TIMER2_COMPA_vect) __attribute__((naked));
 // Function definitions
 //----------------------------------------------------------------------------
 
+void setCurrentProc(void){
+	if (currentStrategy == OS_SS_EVEN)
+	{
+		currentProc = os_Scheduler_Even(os_processes, currentProc);
+	}if (currentStrategy == OS_SS_RANDOM)
+	{
+		currentProc = os_Scheduler_Random(os_processes, currentProc);
+	}if (currentStrategy == OS_SS_INACTIVE_AGING)
+	{
+		currentProc = os_Scheduler_InactiveAging(os_processes, currentProc);
+	}if (currentStrategy == OS_SS_ROUND_ROBIN)
+	{
+		currentProc = os_Scheduler_RoundRobin(os_processes, currentProc);
+	}if (currentStrategy == OS_SS_RUN_TO_COMPLETION)
+	{
+		currentProc = os_Scheduler_RunToCompletion(os_processes, currentProc);
+	}if (currentStrategy == OS_SS_MULTI_LEVEL_FEEDBACK_QUEUE)
+	{
+		currentProc = os_Scheduler_MLFQ(os_processes, currentProc);
+	}
+}
+
 /*!
  *  Timer interrupt that implements our scheduler. Execution of the running
  *  process is suspended and the context saved to the stack. Then the periphery
@@ -91,22 +113,7 @@ ISR(TIMER2_COMPA_vect) {
 	os_processes[currentProc].checksum = os_getStackChecksum(currentProc);
 	
 	//6. Auswahl des nächsten fortzusetzenden Prozesses
-	if (currentStrategy == OS_SS_EVEN)
-	{
-		currentProc = os_Scheduler_Even(os_processes, currentProc);
-	}if (currentStrategy == OS_SS_RANDOM)
-	{
-		currentProc = os_Scheduler_Random(os_processes, currentProc);
-	}if (currentStrategy == OS_SS_INACTIVE_AGING)
-	{
-		currentProc = os_Scheduler_InactiveAging(os_processes, currentProc);
-	}if (currentStrategy == OS_SS_ROUND_ROBIN)
-	{
-		currentProc = os_Scheduler_RoundRobin(os_processes, currentProc);
-	}if (currentStrategy == OS_SS_RUN_TO_COMPLETION)
-	{
-		currentProc = os_Scheduler_RunToCompletion(os_processes, currentProc);
-	}
+	setCurrentProc();
 	
 	//7. Setzen des Prozesszustandes des fortzusetzenden Prozesses auf OS_PS_RUNNING
 	os_processes[currentProc].state = OS_PS_RUNNING;
@@ -157,7 +164,8 @@ bool os_kill(ProcessID pid){
 		}
 		while(criticalSectionCount > 0){
 			os_leaveCriticalSection();}
-		while(1);
+		os_yield();
+		return true;
 	}
 	else
 	{
@@ -186,7 +194,7 @@ void os_dispatcher(){
 	}
 	p();
 	os_kill(currentProc);
-	while (1);
+	os_yield();
 }
 
 /*!
@@ -381,6 +389,24 @@ StackChecksum os_getStackChecksum(ProcessID pid) {
 		sum ^= *((uint8_t*)i);
 	}
 	return sum;
+}
+
+void os_yield(void){
+	os_enterCriticalSection();
+	if (os_processes[currentProc].state != OS_PS_UNUSED) // Terminierung check
+	{
+		os_processes[currentProc].state = OS_PS_BLOCKED;
+	}
+	uint8_t criticalSectionCountTemp = criticalSectionCount;
+	uint8_t sreg = SREG; // Speichern des Global Interrupt Enable Bit (GIEB) aus dem SREG
+	criticalSectionCount = 1;
+	os_leaveCriticalSection();
+	TIMER2_COMPA_vect(); // der Interruptserviceroutine des Schedulers darstellen
+	os_enterCriticalSection();
+	SREG &= ~(1 << 7); // Deaktivieren des Global Interrupt Enable Bit
+	SREG = sreg; // Re-enable global interrupts
+	criticalSectionCount = criticalSectionCountTemp;
+	os_leaveCriticalSection();
 }
 
 
