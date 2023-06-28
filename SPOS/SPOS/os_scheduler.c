@@ -115,13 +115,14 @@ ISR(TIMER2_COMPA_vect) {
 	//6. Auswahl des nächsten fortzusetzenden Prozesses
 	setCurrentProc();
 	
-	//7. Setzen des Prozesszustandes des fortzusetzenden Prozesses auf OS_PS_RUNNING
-	os_processes[currentProc].state = OS_PS_RUNNING;
-	
 	// checksum check
 	if (os_getStackChecksum(currentProc) != os_processes[currentProc].checksum) {
 		os_error("checksum changed!");
 	}
+	
+	//7. Setzen des Prozesszustandes des fortzusetzenden Prozesses auf OS_PS_RUNNING
+	os_processes[currentProc].state = OS_PS_RUNNING;
+	
 	//8. Wiederherstellen des Stackpointers für den Prozessstack des fortzusetzenden Prozesses
 	SP = os_processes[currentProc].sp.as_int;
 	
@@ -237,7 +238,7 @@ ProcessID os_exec(Program *program, Priority priority) {
 	os_processes[PID].program = program;
 	os_processes[PID].state = OS_PS_READY;
 	os_processes[PID].priority = priority;
-	os_resetProcessSchedulingInformation(PID); // reset age of the new process
+	
 	//4. Prozessstack vorbereiten
 	StackPointer sp;
 	sp.as_int = PROCESS_STACK_BOTTOM(PID);
@@ -256,6 +257,7 @@ ProcessID os_exec(Program *program, Priority priority) {
 	os_processes[PID].sp.as_ptr = sp.as_ptr;
 	// Prüfsumme initialisieren
 	os_processes[PID].checksum = os_getStackChecksum(PID);
+	os_resetProcessSchedulingInformation(PID); // reset age of the new process
 	os_leaveCriticalSection();
 	return PID;
 }
@@ -278,7 +280,7 @@ void os_startScheduler(void) {
  */
 void os_initScheduler(void) {
 	// das Feld state aller Einträge auf OS_PS_UNUSED setzen
-    for (int i=0; i < MAX_NUMBER_OF_PROCESSES; i++)
+    for (int i = 0; i < MAX_NUMBER_OF_PROCESSES; i++)
     {
 		os_processes[i].state = OS_PS_UNUSED;
     }
@@ -319,7 +321,7 @@ ProcessID os_getCurrentProc(void) {
  */
 void os_setSchedulingStrategy(SchedulingStrategy strategy) {
     currentStrategy = strategy;
-	if (strategy == OS_SS_ROUND_ROBIN || strategy == OS_SS_INACTIVE_AGING)
+	if (strategy == OS_SS_ROUND_ROBIN || strategy == OS_SS_INACTIVE_AGING || strategy == OS_SS_MULTI_LEVEL_FEEDBACK_QUEUE)
 	{
 		os_resetSchedulingInformation(strategy);
 	}
@@ -391,20 +393,19 @@ StackChecksum os_getStackChecksum(ProcessID pid) {
 	return sum;
 }
 
-void os_yield(void){
+void os_yield(void) {
 	os_enterCriticalSection();
-	if (os_processes[currentProc].state != OS_PS_UNUSED) // Terminierung check
-	{
+	uint8_t criticalSectionCountTemp = criticalSectionCount;
+	uint8_t sreg = SREG;
+	if (os_processes[currentProc].state == OS_PS_RUNNING || os_processes[currentProc].state == OS_PS_READY) {
 		os_processes[currentProc].state = OS_PS_BLOCKED;
 	}
-	uint8_t criticalSectionCountTemp = criticalSectionCount;
-	uint8_t sreg = SREG; // Speichern des Global Interrupt Enable Bit (GIEB) aus dem SREG
 	criticalSectionCount = 1;
 	os_leaveCriticalSection();
-	TIMER2_COMPA_vect(); // der Interruptserviceroutine des Schedulers darstellen
-	os_enterCriticalSection();
+	TIMER2_COMPA_vect();
 	SREG &= ~(1 << 7); // Deaktivieren des Global Interrupt Enable Bit
 	SREG = sreg; // Re-enable global interrupts
+	os_enterCriticalSection();
 	criticalSectionCount = criticalSectionCountTemp;
 	os_leaveCriticalSection();
 }

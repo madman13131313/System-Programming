@@ -44,7 +44,7 @@ Time os_systemTime_coarse(void) {
      *   os_systemTime_overflows*1000                /(F_CPU/TC0_PRESCALER/256)
      *   timercounts            |   mult to get ms   | to get from freq to time 
      */
-    return os_systemTime_overflows * 1000 / (F_CPU/TC0_PRESCALER/256);
+    return os_systemTime_overflows*1000 / (F_CPU/TC0_PRESCALER/256);
 } 
 
 /*!

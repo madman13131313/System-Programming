@@ -29,21 +29,21 @@
     <eraseonlaunchrule>0</eraseonlaunchrule>
     <EraseKey />
     <avrtool>com.atmel.avrdbg.tool.jtagice3plus</avrtool>
-    <avrtoolserialnumber>J30200032010</avrtoolserialnumber>
+    <avrtoolserialnumber>J30200031746</avrtoolserialnumber>
     <avrdeviceexpectedsignature>0x1E9609</avrdeviceexpectedsignature>
     <com_atmel_avrdbg_tool_jtagice3plus>
       <ToolOptions>
         <InterfaceProperties>
-          <JtagDbgClock>1127501</JtagDbgClock>
+          <JtagDbgClock>3999183</JtagDbgClock>
         </InterfaceProperties>
         <InterfaceName>JTAG</InterfaceName>
       </ToolOptions>
       <ToolType>com.atmel.avrdbg.tool.jtagice3plus</ToolType>
-      <ToolNumber>J30200032010</ToolNumber>
+      <ToolNumber>J30200031746</ToolNumber>
       <ToolName>JTAGICE3</ToolName>
     </com_atmel_avrdbg_tool_jtagice3plus>
     <avrtoolinterface>JTAG</avrtoolinterface>
-    <avrtoolinterfaceclock>1127501</avrtoolinterfaceclock>
+    <avrtoolinterfaceclock>3999183</avrtoolinterfaceclock>
     <AsfFrameworkConfig>
       <framework-data xmlns="">
         <options />

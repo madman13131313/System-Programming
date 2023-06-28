@@ -131,10 +131,9 @@ void os_init(void) {
     os_checkResetSource(OS_ALLOWED_RESET_SOURCES);
     delayMs(DEFAULT_OUTPUT_DELAY * 20);
     os_initScheduler();
-	os_initSchedulingInformation();
-    os_systemTime_reset();
 	initMemoryDevices();
 	os_initHeaps();
+	os_systemTime_reset();
 }
 
 /*!

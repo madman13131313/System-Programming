@@ -38,6 +38,18 @@ void os_resetSchedulingInformation(SchedulingStrategy strategy) {
 			schedulingInfo.age[i] = 0;
 		}
 	}
+	if (strategy == OS_SS_MULTI_LEVEL_FEEDBACK_QUEUE)
+	{
+		os_initSchedulingInformation();
+		for (uint8_t i = 1; i < MAX_NUMBER_OF_PROCESSES; i++)
+		{
+			if (os_getProcessSlot(i)->state == OS_PS_READY) {
+				uint8_t prio = os_getProcessSlot(i)->priority;
+				pqueue_append(MLFQ_getQueue(MLFQ_MapToQueue(prio)), i);
+				schedulingInfo.zeitScheiben[i] = MLFQ_getDefaultTimeslice(MLFQ_MapToQueue(prio));
+			}
+		}
+	}
 }
 
 /*!
@@ -49,9 +61,13 @@ void os_resetSchedulingInformation(SchedulingStrategy strategy) {
  */
 void os_resetProcessSchedulingInformation(ProcessID id) {
     schedulingInfo.age[id] = 0;
-	MLFQ_removePID(id);
-	uint8_t prio = os_getProcessSlot(id)->priority;
-	pqueue_append(MLFQ_getQueue(MLFQ_MapToQueue(prio)), id);
+	if ((os_getSchedulingStrategy() == OS_SS_MULTI_LEVEL_FEEDBACK_QUEUE) && (id != 0))
+	{
+		MLFQ_removePID(id);
+		uint8_t prio = os_getProcessSlot(id)->priority;
+		pqueue_append(MLFQ_getQueue(MLFQ_MapToQueue(prio)), id);
+		schedulingInfo.zeitScheiben[id] = MLFQ_getDefaultTimeslice(MLFQ_MapToQueue(prio));
+	}
 }
 
 /*!
@@ -88,6 +104,7 @@ ProcessID os_Scheduler_Even(Process const processes[], ProcessID current) {
 	}
 	return 0;
 }
+
 
 /*!
  *  This function implements the random strategy. The next process is chosen based on
@@ -160,13 +177,13 @@ ProcessID os_Scheduler_RoundRobin(Process const processes[], ProcessID current) 
  */
 ProcessID os_Scheduler_InactiveAging(Process const processes[], ProcessID current) {
 	// the age of every waiting process is increased by its priority
-    for (uint8_t i = 0; i < MAX_NUMBER_OF_PROCESSES; i++)
-    {
+	for (uint8_t i = 0; i < MAX_NUMBER_OF_PROCESSES; i++)
+	{
 		if ((processes[i].state==OS_PS_READY))
 		{
 			schedulingInfo.age[i] += processes[i].priority;
 		}
-    }
+	}
 	ProcessID next = current;
 	uint8_t max = 0;
 	for (uint8_t i = 0; i < MAX_NUMBER_OF_PROCESSES; i++){
@@ -195,10 +212,10 @@ ProcessID os_Scheduler_InactiveAging(Process const processes[], ProcessID curren
 					}
 				}
 			}
-		}	
+		}
 	}
 	schedulingInfo.age[next] = processes[next].priority;
-    return next;
+	return next;
 }
 
 /*!
@@ -211,7 +228,7 @@ ProcessID os_Scheduler_InactiveAging(Process const processes[], ProcessID curren
  *  \return The next process to be executed, determined based on the run-to-completion strategy.
  */
 ProcessID os_Scheduler_RunToCompletion(Process const processes[], ProcessID current) {
-    if (processes[current].state == OS_PS_READY)
+    if ((current != 0) && (processes[current].state == OS_PS_READY))
     {
 	    return current;
     }
@@ -234,48 +251,48 @@ ProcessID os_Scheduler_MLFQ(Process const processes[], ProcessID current){
 			ProcessID id = queue->data[queue->tail];
 			if (processes[id].state != OS_PS_UNUSED)
 			{
+				if (processes[id].state == OS_PS_READY && schedulingInfo.zeitScheiben[id] > 0)
+				{
+					schedulingInfo.zeitScheiben[id]--;
+					return id;
+				}
+				// if the time slice of the process in this class turns to 0, put the process into the lower class
+				if (schedulingInfo.zeitScheiben[id] == 0)
+				{
+					if (q > 0)
+					{
+						pqueue_dropFirst(queue);
+						pqueue_append(schedulingInfo.queues[q-1], id);
+						// initialize the new time slice of the process in the lower class
+						schedulingInfo.zeitScheiben[id] = MLFQ_getDefaultTimeslice(q-1);
+					}
+					// Befindet sich der Prozess bereits in der niedrigsten Klasse
+					else{
+						pqueue_dropFirst(queue);
+						pqueue_append(queue, id);
+						// renew the time slice of the process
+						schedulingInfo.zeitScheiben[id] = MLFQ_getDefaultTimeslice(q);
+					}
+					
+				}
 				if (processes[id].state == OS_PS_BLOCKED)
 				{
 					os_getProcessSlot(id)->state = OS_PS_READY;
-					pqueue_removePID(queue, id);
+					pqueue_dropFirst(queue);
 					pqueue_append(queue, id);
-				}
-				else{
-					schedulingInfo.zeitScheiben[id]--;
-					// if the time slice of the process in this class turns to 0, put the process into the lower class
-					if (schedulingInfo.zeitScheiben[id] == 0)
-					{	
-						if (q > 0)
-						{
-							pqueue_removePID(queue, id);
-							pqueue_append(schedulingInfo.queues[q-1], id);
-							// initialize the new time slice of the process in the lower class
-							schedulingInfo.zeitScheiben[id] = MLFQ_getDefaultTimeslice(q-1);
-						}
-						// Befindet sich der Prozess bereits in der niedrigsten Klasse
-						else{
-							pqueue_removePID(queue, id);
-							pqueue_append(queue, id);
-							// renew the time slice of the process
-							schedulingInfo.zeitScheiben[id] = MLFQ_getDefaultTimeslice(q);
-						}
-						
-					}
-					return id;
 				}	
 			}
 			else{
-				pqueue_removePID(queue, id);
+				pqueue_dropFirst(queue);
 			}
 		}
 	}
 	return 0;
 }
-
+	
 // Initializes the given ProcessQueue with a predefined size.
 void pqueue_init(ProcessQueue *queue){
 	queue->size = MAX_NUMBER_OF_PROCESSES;
-	queue->data = (ProcessID*)malloc(sizeof(ProcessID) * (queue->size));
 	queue->head = 0;
 	queue->tail = 0;
 }
@@ -294,7 +311,7 @@ bool pqueue_hasNext(const ProcessQueue *queue){
 // Returns the first ProcessID of the given ProcessQueue.
 ProcessID pqueue_getFirst(const ProcessQueue *queue){
 	if (pqueue_hasNext(queue)) {
-		return queue->data[queue->head];
+		return queue->data[queue->tail];
 	} else {
 		return INVALID_PROCESS;
 	}
@@ -303,7 +320,7 @@ ProcessID pqueue_getFirst(const ProcessQueue *queue){
 // Drops the first ProcessID of the given ProcessQueue.
 void pqueue_dropFirst(ProcessQueue *queue){
 	if (pqueue_hasNext(queue)) {
-		queue->head = (queue->head - 1) % queue->size;
+		queue->tail = (queue->tail + 1) % queue->size;
 	}
 }
 
@@ -314,35 +331,36 @@ void pqueue_append(ProcessQueue *queue, ProcessID pid){
 }
 
 // Removes a ProcessID from the given ProcessQueue.
-void pqueue_removePID(ProcessQueue *queue, ProcessID pid){
+void pqueue_removePID(ProcessQueue *queue, ProcessID pid) {
 	if (!pqueue_hasNext(queue)) {
-		return; 
+		return;
 	}
-	uint8_t curr = queue->tail;
-	uint8_t count = (queue->head - queue->tail + queue->size) % queue->size;
+	uint8_t front = queue->tail;
+	uint8_t rear = queue->head;
+	uint8_t count = (rear - front + queue->size) % queue->size;
+	uint8_t removed = 0;
 	for (uint8_t i = 0; i < count; i++) {
-		if (queue->data[curr] == pid) {
-			for (uint8_t j = curr; j < count - 1; j++) {
-				queue->data[j] = queue->data[j + 1];
-			}
-			pqueue_dropFirst(queue);
-			break;
+		ProcessID current = queue->data[front];
+		if (current != pid) {
+			queue->data[rear] = current;
+			rear = (rear + 1) % queue->size;
+		} else {
+			removed = 1;
 		}
-		curr = (curr + 1) % queue->size;
+		front = (front + 1) % queue->size;
+	}
+	if (removed) {
+		queue->head = rear;
+		queue->tail = front;
 	}
 }
 
 // Initialises the scheduling information.
 void os_initSchedulingInformation(void){
 	for (int i = 0; i < 4; i++) {
+		schedulingInfo.queues[i] = (ProcessQueue*)malloc(sizeof(ProcessQueue));
 		pqueue_init(schedulingInfo.queues[i]);
-	}
-	for (uint8_t i = 0; i < MAX_NUMBER_OF_PROCESSES; i++)
-	{
-		uint8_t prio = os_getProcessSlot(i)->priority;
-		pqueue_append(MLFQ_getQueue(MLFQ_MapToQueue(prio)), i);
-		schedulingInfo.zeitScheiben[i] = MLFQ_getDefaultTimeslice(MLFQ_MapToQueue(prio));
-	}
+	}	
 }
 
 // Returns the corresponding ProcessQueue.
@@ -376,6 +394,9 @@ uint8_t MLFQ_getDefaultTimeslice(uint8_t queueID){
 			break;
 		case 3:
 			timeSlice = 1;
+			break;
+		default:
+			timeSlice = 0;
 			break;
 	}
 	return timeSlice;

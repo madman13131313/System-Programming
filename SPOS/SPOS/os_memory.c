@@ -180,9 +180,6 @@ uint16_t os_getChunkSize (Heap const *heap, MemAddr addr){
 
 // Frees the chunk iff it is owned by the given owner.
 void os_freeOwnerRestricted (Heap *heap, MemAddr addr, ProcessID owner) {
-	if(addr < heap->useStart || addr>=heap->useStart+heap->useSize) {
-		return;
-	}
 	MemAddr firstByte = os_getFirstByteOfChunk(heap, addr);
 	if (owner == os_getMapEntry(heap, firstByte) ) {
 		MemAddr lastByte = os_getFirstByteOfChunk(heap, addr) + os_getChunkSize(heap, addr);
@@ -195,8 +192,18 @@ void os_freeOwnerRestricted (Heap *heap, MemAddr addr, ProcessID owner) {
 // Function used by processes to free their own allocated memory.
 void os_free (Heap *heap, MemAddr addr){
 	os_enterCriticalSection();
+	if( addr < heap->useStart || addr > heap->useStart+heap->useSize) {
+		os_error("os_free outbounded");
+		os_leaveCriticalSection();
+		return;
+	}
 	ProcessID owner = os_getCurrentProc();
 	MemAddr firstByte = os_getFirstByteOfChunk(heap,addr);
+	if ( (8 <= os_getMapEntry(heap, firstByte)) && (os_getMapEntry(heap, firstByte) <= 14)) {
+		os_error("os_free_sharedMemory");
+		os_leaveCriticalSection();
+		return;
+	}
 	MemAddr lastByte = os_getFirstByteOfChunk(heap, addr) + os_getChunkSize(heap, addr);
 	os_freeOwnerRestricted(heap, addr, owner);
 	// renew the starting/ending frame of the process
@@ -236,6 +243,11 @@ void os_free (Heap *heap, MemAddr addr){
 // Function used by processes to free shared memory.
 void os_sh_free(Heap *heap, MemAddr *addr){
 	os_enterCriticalSection();
+	if(*addr < heap->useStart || *addr > heap->useStart+heap->useSize) {
+		os_error("os_sh_free outbounded");
+		os_leaveCriticalSection();
+		return;
+	}
 	MemValue value = os_getMapEntry(heap, os_getFirstByteOfChunk(heap, *addr));
 	if(value < SHARED_MEMORY) {
 		os_error("sh_free_pidOwned");
@@ -409,15 +421,16 @@ MemAddr os_sh_readOpen(Heap const *heap, MemAddr const *ptr){
 		return 0;
 	} 
 	else {
-		while (value == SHARED_MEMORY_WRITING){
+		while (value == SHARED_MEMORY_WRITING || value == SHARED_MEMORY_READING5){
 			os_yield();
 			value = os_getMapEntry(heap, os_getFirstByteOfChunk(heap, *ptr));
 		}
 		switch (value){
 			case SHARED_MEMORY:
-				setMapEntry(heap, os_getFirstByteOfChunk(heap, *ptr), SHARED_MEMORY_READING);
+				setMapEntry(heap, os_getFirstByteOfChunk(heap, *ptr), SHARED_MEMORY_READING1);
 				break;
-			case SHARED_MEMORY_READING:
+			case SHARED_MEMORY_READING1 ... SHARED_MEMORY_READING4:
+				setMapEntry(heap, os_getFirstByteOfChunk(heap, *ptr), value + 1);
 				break;
 			default:
 				os_error("os_sh_readOpen default error");
@@ -460,8 +473,11 @@ void os_sh_close(Heap const *heap, MemAddr addr){
 		case SHARED_MEMORY_WRITING:
 			setMapEntry(heap, os_getFirstByteOfChunk(heap, addr), SHARED_MEMORY);
 			break;
-		case SHARED_MEMORY_READING:
-			setMapEntry(heap, os_getFirstByteOfChunk(heap, addr),  SHARED_MEMORY);
+		case SHARED_MEMORY_READING1:
+			setMapEntry(heap, os_getFirstByteOfChunk(heap, addr), SHARED_MEMORY);
+			break;
+		case SHARED_MEMORY_READING2...SHARED_MEMORY_READING5:
+			setMapEntry(heap, os_getFirstByteOfChunk(heap, addr), value - 1);
 			break;
 		default:
 			os_error("os_sh_close default error");
@@ -478,11 +494,28 @@ void os_sh_write(Heap const *heap, MemAddr const *ptr, uint16_t offset, MemValue
 	}
 	MemAddr gate = os_sh_writeOpen (heap, ptr);
 	MemAddr index = gate;
+	if (offset == 0)
+	{
+		heap->driver->write(index, *dataSrc);
+		++dataSrc;
+		++index;
+		--length;
+	}
 	while(offset > 0) {
 		++index;
 		--offset;
+		if(os_getMapEntry(heap, index) != 15 ) {
+			os_error("os_sh_write_offset_error");
+			os_sh_close(heap, gate);
+			return;
+		}
 	}
 	while (length > 0) {
+		if(os_getMapEntry(heap, index)!= 15) {
+			os_error("os_sh_write_length_error");
+			os_sh_close(heap, gate);
+			return;
+		}
 		heap->driver->write(index, *dataSrc);
 		++dataSrc;
 		++index;
@@ -499,11 +532,28 @@ void os_sh_read(Heap const *heap, MemAddr const *ptr, uint16_t offset, MemValue 
 	}
 	MemAddr gate = os_sh_readOpen (heap, ptr);
 	MemAddr index = gate;
+	if (offset == 0)
+	{
+		*dataDest = heap->driver->read(index);
+		++dataDest;
+		++index;
+		--length;
+	}
 	while(offset > 0) {
 		++index;
 		--offset;
+		if(os_getMapEntry(heap, index) != 15 ) {
+			os_error("os_sh_read_offset_error");
+			os_sh_close(heap, gate);
+			return;
+		}
 	}
 	while (length > 0) {
+		if(os_getMapEntry(heap, index)!= 15) {
+			os_error("os_sh_read_length_error");
+			os_sh_close(heap, gate);
+			return;
+		}
 		*dataDest = heap->driver->read(index);
 		++dataDest;
 		++index;

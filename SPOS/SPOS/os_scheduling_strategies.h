@@ -16,7 +16,7 @@
 
 //! Ringbuffer for process queueing.
 typedef struct {
-	ProcessID* data;
+	ProcessID data[MAX_NUMBER_OF_PROCESSES];
 	uint8_t size;
 	uint8_t head;
 	uint8_t tail;

@@ -49,7 +49,11 @@
 // Shared memory
 #define SHARED_MEMORY 8
 #define SHARED_MEMORY_WRITING 9
-#define SHARED_MEMORY_READING 10
+#define SHARED_MEMORY_READING1 10
+#define SHARED_MEMORY_READING2 11
+#define SHARED_MEMORY_READING3 12
+#define SHARED_MEMORY_READING4 13
+#define SHARED_MEMORY_READING5 14
 
 //! Standard priority for newly created processes
 #define DEFAULT_PRIORITY            2
@@ -92,6 +96,6 @@
 #define PROCESS_STACK_BOTTOM(PID)   (BOTTOM_OF_PROCS_STACK - ((PID) * STACK_SIZE_PROC))
 
 // Sicherheitsabstand setzen
-#define HEAPOFFSET					300
+#define HEAPOFFSET					400
 
 #endif
