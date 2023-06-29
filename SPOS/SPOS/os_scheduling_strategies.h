@@ -26,7 +26,7 @@ typedef struct {
 typedef struct {
 	Age age[MAX_NUMBER_OF_PROCESSES];
 	uint8_t timeSlice;
-	ProcessQueue* queues[4]; // 1, 2, 4, 8
+	ProcessQueue queues[4]; // 1, 2, 4, 8
 	uint8_t zeitScheiben[MAX_NUMBER_OF_PROCESSES];
 } SchedulingInformation;
 

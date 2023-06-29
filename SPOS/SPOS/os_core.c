@@ -109,31 +109,36 @@ void os_init_timer(void) {
  *  it calls the sub function os_initScheduler().
  */
 void os_init(void) {
-    // Init timer 0 and 2
-    os_init_timer();
+	// Init timer 0 and 2
+	os_init_timer();
 
-    // Init buttons
-    os_initInput();
+	// Init buttons
+	os_initInput();
 
-    // Init LCD display
-    lcd_init();
-    stdout = lcdout;
-    stderr = lcdout;
+	// Init LCD display
+	lcd_init();
+	stdout = lcdout;
+	stderr = lcdout;
 
+	lcd_writeProgString(PSTR("Booting SPOS ..."));
 	
-	// Check the Start of heap
-	if (((uint16_t)&__heap_start) > (HEAPOFFSET + 0x100))
-	{
-		os_error("HEAPOFFSET too small");
-	}
-	
-    lcd_writeProgString(PSTR("Booting SPOS ..."));
-    os_checkResetSource(OS_ALLOWED_RESET_SOURCES);
-    delayMs(DEFAULT_OUTPUT_DELAY * 20);
-    os_initScheduler();
-	initMemoryDevices();
-	os_initHeaps();
+	os_checkResetSource(OS_ALLOWED_RESET_SOURCES);
+	delayMs(DEFAULT_OUTPUT_DELAY * 20);
+
+	os_initScheduler();
+
 	os_systemTime_reset();
+	
+	//Speichertreiber initialisieren
+	initMemoryDevices();
+	
+	//Sicherheitsüberprüfung
+	if (0x100+HEAPOFFSET <= (uint16_t) &__heap_start){
+		os_error("HeapOffset to small");
+	}
+	//Heap initialisieren
+	os_initHeaps();
+	
 }
 
 /*!

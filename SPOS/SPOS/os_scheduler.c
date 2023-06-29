@@ -109,11 +109,18 @@ ISR(TIMER2_COMPA_vect) {
 		os_processes[currentProc].state = OS_PS_READY;
 	}
 	
+	ProcessID prevProc = currentProc;
+	
 	//checksum abspeichern
 	os_processes[currentProc].checksum = os_getStackChecksum(currentProc);
 	
 	//6. Auswahl des nächsten fortzusetzenden Prozesses
 	setCurrentProc();
+	
+	if (os_processes[prevProc].state == OS_PS_BLOCKED)
+	{
+		os_processes[prevProc].state = OS_PS_READY;
+	}
 	
 	// checksum check
 	if (os_getStackChecksum(currentProc) != os_processes[currentProc].checksum) {
@@ -279,6 +286,7 @@ void os_startScheduler(void) {
  *  initialize its internal data-structures and register.
  */
 void os_initScheduler(void) {
+	os_initSchedulingInformation();
 	// das Feld state aller Einträge auf OS_PS_UNUSED setzen
     for (int i = 0; i < MAX_NUMBER_OF_PROCESSES; i++)
     {
@@ -321,10 +329,7 @@ ProcessID os_getCurrentProc(void) {
  */
 void os_setSchedulingStrategy(SchedulingStrategy strategy) {
     currentStrategy = strategy;
-	if (strategy == OS_SS_ROUND_ROBIN || strategy == OS_SS_INACTIVE_AGING || strategy == OS_SS_MULTI_LEVEL_FEEDBACK_QUEUE)
-	{
-		os_resetSchedulingInformation(strategy);
-	}
+	os_resetSchedulingInformation(strategy);
 }
 
 /*!
