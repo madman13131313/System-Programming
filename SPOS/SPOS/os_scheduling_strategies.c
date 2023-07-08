@@ -392,11 +392,16 @@ uint8_t MLFQ_getDefaultTimeslice(uint8_t queueID){
 
 // Maps a process-priority to a priority class.
 uint8_t MLFQ_MapToQueue(Priority prio){
-	switch (prio & 0b11000000) {
-		case 0b11000000: return 0;
-		case 0b10000000: return 1;
-		case 0b01000000: return 2;
-		case 0b00000000: return 3;
+	switch (prio & 0b11000000) 
+	{
+		case 0b11000000: 
+			return 0;
+		case 0b10000000: 
+			return 1;
+		case 0b01000000: 
+			return 2;
+		case 0b00000000: 
+			return 3;
 	}
 	return 0;
 }
