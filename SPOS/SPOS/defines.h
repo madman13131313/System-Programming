@@ -32,7 +32,7 @@
 //----------------------------------------------------------------------------
 
 //! The current id of the exercise (this must be changed every two weeks).
-#define VERSUCH 5
+#define VERSUCH 6
 
 //----------------------------------------------------------------------------
 // System constants
@@ -96,6 +96,6 @@
 #define PROCESS_STACK_BOTTOM(PID)   (BOTTOM_OF_PROCS_STACK - ((PID) * STACK_SIZE_PROC))
 
 // Sicherheitsabstand setzen
-#define HEAPOFFSET					400
+#define HEAPOFFSET					950
 
 #endif

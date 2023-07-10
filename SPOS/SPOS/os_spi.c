@@ -9,6 +9,7 @@ void os_spi_init() {
 	DDRB |= 0b00100000; // Set Pin B5 as output
 	// B6: MISO
 	DDRB &= 0b10111111; // Set Pin B6 as input
+	PORTB |= 0b01000000;
 	// B7: CLK
 	DDRB |= 0b10000000; // Set Pin B7 as output
 	// SPI-Konfiguration

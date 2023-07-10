@@ -29,21 +29,21 @@
     <eraseonlaunchrule>0</eraseonlaunchrule>
     <EraseKey />
     <avrtool>com.atmel.avrdbg.tool.jtagice3plus</avrtool>
-    <avrtoolserialnumber>J30200031939</avrtoolserialnumber>
+    <avrtoolserialnumber>J30200042082</avrtoolserialnumber>
     <avrdeviceexpectedsignature>0x1E9609</avrdeviceexpectedsignature>
     <com_atmel_avrdbg_tool_jtagice3plus>
       <ToolOptions>
         <InterfaceProperties>
-          <JtagDbgClock>3927836</JtagDbgClock>
+          <JtagDbgClock>3767308</JtagDbgClock>
         </InterfaceProperties>
         <InterfaceName>JTAG</InterfaceName>
       </ToolOptions>
       <ToolType>com.atmel.avrdbg.tool.jtagice3plus</ToolType>
-      <ToolNumber>J30200031939</ToolNumber>
+      <ToolNumber>J30200042082</ToolNumber>
       <ToolName>JTAGICE3</ToolName>
     </com_atmel_avrdbg_tool_jtagice3plus>
     <avrtoolinterface>JTAG</avrtoolinterface>
-    <avrtoolinterfaceclock>3927836</avrtoolinterfaceclock>
+    <avrtoolinterfaceclock>3767308</avrtoolinterfaceclock>
     <AsfFrameworkConfig>
       <framework-data xmlns="">
         <options />
@@ -235,6 +235,30 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="progs.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="tlcd_button.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="tlcd_button.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="tlcd_core.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="tlcd_core.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="tlcd_graphic.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="tlcd_graphic.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="tlcd_parser.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="tlcd_parser.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="util.c">
